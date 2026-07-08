@@ -5,13 +5,29 @@ FastMCP server exposing four tools over the real Model Context Protocol
 
 | Tool | Purpose |
 |---|---|
-| validate_oas | Spectral lint + guideline retrieval (report only) |
-| fix_oas | Same checks, returns corrected OAS + unresolved findings |
+| validate_oas | Spectral lint + guideline retrieval + Referential/Registry duplicate checks (report only) |
+| fix_oas | Spectral + guideline checks, returns corrected OAS + unresolved findings |
 | search_api_registry | Endpoint-level semantic search; supports api_id filter |
 | search_api_referential | API discovery; returns api_id for follow-up |
 
 Tool discovery, JSON schemas, and invocation all go through the MCP protocol
 itself (`tools/list`, `tools/call`) — there is no hand-rolled REST catalogue.
+
+## validate_oas: four layers of checks
+1. **Spectral lint** — structural rules from `resources/api-ruleset.yaml`
+   (pagination limits, versioned paths, error envelope, idempotency header,
+   etc.) — only these affect `is_valid`.
+2. **Guidelines Index (RAG)** — prose rules Spectral can't check structurally,
+   surfaced as informational context.
+3. **Referential cross-check (RAG)** — is this API even registered in the
+   Referential inventory, and does it look like a near-duplicate of an
+   already-registered API under a different name?
+4. **Registry cross-check (RAG)** — does any operation in the spec duplicate
+   functionality another team's API already offers?
+
+Layers 3-4 are similarity-based (nearest neighbour in embedding space), not
+deterministic, so they're always reported as warnings/info for a human or
+agent to judge — never a hard failure. See `app/tools/validate_oas.py`.
 
 ## Vector store: FAISS now, pgvector or OpenSearch later
 POC default is FAISS saved to local files under ./vector_data — nothing to
