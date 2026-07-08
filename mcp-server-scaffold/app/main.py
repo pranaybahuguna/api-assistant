@@ -4,9 +4,6 @@ FastMCP entrypoint — the four tools exposed over the Model Context Protocol
 ADK client via McpToolset, or the API Assistant directly) gets tool discovery and
 JSON schemas from the protocol itself instead of a hand-rolled REST catalogue.
 
-the API gateway fronts this in prod; the ASGI middleware only checks the header
-the API gateway injects (off by default for local dev via .env).
-
 Tool functions are plain `def` (not `async def`) on purpose: FastMCP runs
 sync tools in a worker thread by default (run_in_thread=True), which keeps
 the blocking Spectral subprocess / LLM / embeddings calls off the event
@@ -20,12 +17,7 @@ import logging
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
-from starlette.middleware import Middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
-from app.config import get_settings
 from app.integrations.spectral import SpectralError
 from app.models import (
     OASInput, ValidateOASResult, FixOASResult,
@@ -48,14 +40,6 @@ logger = logging.getLogger(__name__)
 _EXPECTED_ERRORS = (SpectralError, LLMResponseError)
 
 mcp = FastMCP(name="API Assistant — MCP Server", version="0.1.0", mask_error_details=True)
-
-
-class the API gatewayHeaderMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        s = get_settings()
-        if s.require_apigee_header and s.apigee_verified_header not in request.headers:
-            return JSONResponse({"detail": "Missing the API gateway verification header"}, status_code=401)
-        return await call_next(request)
 
 
 def _guarded(tool_name: str, fn, *args, **kwargs):
@@ -117,10 +101,9 @@ def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResul
     return _guarded("search_api_referential", t_referential.search_api_referential, payload)
 
 
-# Single Starlette app, built once — this is what `uvicorn app.main:app` serves
-# in prod, and what the __main__ block below runs locally, so the the API gateway
-# middleware is never accidentally left out of one of the two paths.
-app = mcp.http_app(path="/mcp", transport="streamable-http", middleware=[Middleware(the API gatewayHeaderMiddleware)])
+# Single Starlette app, built once — this is what `uvicorn app.main:app`
+# serves in prod, and what the __main__ block below runs locally.
+app = mcp.http_app(path="/mcp", transport="streamable-http")
 
 if __name__ == "__main__":
     import uvicorn

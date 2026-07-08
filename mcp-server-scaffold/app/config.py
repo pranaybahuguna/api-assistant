@@ -20,10 +20,6 @@ class Settings(BaseSettings):
     spectral_ruleset_path: str = "./resources/api-ruleset.yaml"
     spectral_binary: str = "spectral"
 
-    # --- the API gateway ---
-    apigee_verified_header: str = "X-Gateway-Verified"
-    require_apigee_header: bool = False  # set True in prod
-
 
 @lru_cache
 def get_settings() -> Settings:
