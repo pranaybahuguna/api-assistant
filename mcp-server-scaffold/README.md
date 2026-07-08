@@ -22,21 +22,39 @@ No other code changes — everything goes through app/rag/vector_store.py.
 ## Spectral: a file, not an index
 resources/api-ruleset.yaml is consumed whole by the Spectral CLI, and
 parsed once at startup into a rule_id -> {description, severity, x-fix}
-dict used to enrich findings. It is deliberately not vectorized.
+dict used to enrich findings. It is deliberately not vectorized. Six rules
+ship today (skip/take max, versioned paths, error-envelope $ref, POST
+idempotency-key header, per-operation security, 429 Retry-After header),
+each backing a "Mechanically enforced" paragraph in the guidelines doc below.
+
+## Sample content in resources/
+- `API-Design-Guidelines.docx` — a sample guidelines doc (headings,
+  tables, one embedded diagram) for the `guidelines` index.
+- `doc-mgmt-api.yaml` — a sample OAS spec for the `registry` index.
+- `api-referential.yaml` — a sample API inventory for the `referential` index.
+
+All three are placeholder/demo content, not real Org APIs — swap them for
+your own sources any time; see Quickstart below for how ingestion finds them.
+
+## OCR: vision LLM, not a local binary
+Images embedded in ingested .docx files are read via the same
+OpenAI-compatible chat model `fix_oas` uses (a multimodal call), not a
+local `tesseract` install — one less system dependency, and no separate
+OCR pipeline to keep in sync with the LLM client config.
 
 ## Quickstart
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 npm install -g @stoplight/spectral-cli     # the linter binary
-# apt install tesseract-ocr                # optional, for image OCR
 cp .env.example .env                        # fill in your internal LLM URL/key
 
-# Ingest the knowledge base (FAISS files land in ./vector_data)
-python -m app.ingestion.pipeline --source docx --path "./sources/API+Design+Guide.docx" --index guidelines
-python -m app.ingestion.pipeline --source docx --path "./sources/API Design Guidelines.docx" --index guidelines
-python -m app.ingestion.pipeline --source oas  --path "./sources/doc-mgmt-api.yaml" --index registry
-python -m app.ingestion.pipeline --source referential --path "./sources/api-referential.yaml" --index referential
+# Ingest the knowledge base (FAISS files land in ./vector_data).
+# --path is optional for these three — they default to the matching file
+# under resources/. Pass --path to ingest a different file instead.
+python -m app.ingestion.pipeline --source docx        --index guidelines
+python -m app.ingestion.pipeline --source oas         --index registry
+python -m app.ingestion.pipeline --source referential --index referential
 
 python -m app.main                          # local dev, or:
 uvicorn app.main:app --port 8080            # prod (same `app` object either way)

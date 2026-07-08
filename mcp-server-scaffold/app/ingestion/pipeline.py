@@ -2,15 +2,17 @@
 Ingestion: load -> chunk -> embed -> upsert -> (FAISS) save to disk.
 
 --path is optional for (source, index) pairs with a known default under
-resources/ (see _DEFAULT_PATHS) — e.g. the API Design Guidelines docx
-ships in the repo, so `--source docx --index guidelines` alone is enough.
+resources/ (see _DEFAULT_PATHS) — the API Design Guidelines docx, the
+doc-mgmt-api OAS sample, and the API Referential sample all ship in the
+repo under resources/, so each of the four commands below runs with no
+--path at all. Pass --path explicitly to ingest a different file instead
+(e.g. a PDF, or your own OAS/referential source).
 
 Usage:
   python -m app.ingestion.pipeline --source docx        --index guidelines
-  python -m app.ingestion.pipeline --source docx        --path "./sources/other-guide.docx" --index guidelines
-  python -m app.ingestion.pipeline --source pdf         --path "./sources/security.pdf"               --index guidelines
-  python -m app.ingestion.pipeline --source oas         --path "./sources/doc-mgmt-api.yaml"          --index registry
-  python -m app.ingestion.pipeline --source referential --path "./sources/api-referential.yaml"       --index referential
+  python -m app.ingestion.pipeline --source oas         --index registry
+  python -m app.ingestion.pipeline --source referential --index referential
+  python -m app.ingestion.pipeline --source pdf         --path "./resources/security.pdf" --index guidelines
 """
 import argparse
 from pathlib import Path
@@ -28,6 +30,8 @@ _INDEXES = {"guidelines": Index.GUIDELINES, "registry": Index.REGISTRY, "referen
 # run with no --path at all.
 _DEFAULT_PATHS = {
     ("docx", "guidelines"): "./resources/API-Design-Guidelines.docx",
+    ("oas", "registry"): "./resources/doc-mgmt-api.yaml",
+    ("referential", "referential"): "./resources/api-referential.yaml",
 }
 
 
