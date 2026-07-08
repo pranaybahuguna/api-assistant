@@ -1,8 +1,10 @@
 """
 Vector store factory. POC default = FAISS saved to local files (no database
-to install — perfect for a laptop demo). Later, flip VECTOR_BACKEND=pgvector
-in .env and fill VECTOR_DB_URL: nothing else in the codebase changes,
-because every caller only sees the LangChain VectorStore interface.
+to install — perfect for a laptop demo). Later, flip VECTOR_BACKEND to
+"pgvector" or "opensearch" in .env and fill the matching connection
+settings: nothing else in the codebase changes, because every caller only
+ever sees the LangChain VectorStore interface. Add a new backend by adding
+one more `elif` branch here — call sites never change.
 
 FAISS persistence model: each index lives in its own folder under
 settings.faiss_dir (e.g. ./vector_data/guidelines/). save() must be called
@@ -55,6 +57,18 @@ def get_vector_store(index: Index) -> VectorStore:
             collection_name=f"{index.value}_index",
             connection=settings.vector_db_url,
             use_jsonb=True,
+        )
+
+    elif settings.vector_backend == "opensearch":
+        # Deferred import so the POC doesn't need opensearch-py installed.
+        from langchain_community.vectorstores import OpenSearchVectorSearch
+        auth = (settings.opensearch_username, settings.opensearch_password) if settings.opensearch_username else None
+        return OpenSearchVectorSearch(
+            opensearch_url=settings.opensearch_url,
+            index_name=f"{index.value}_index",
+            embedding_function=get_embeddings(),
+            http_auth=auth,
+            verify_certs=settings.opensearch_verify_certs,
         )
 
     raise ValueError(f"Unknown vector backend: {settings.vector_backend}")
