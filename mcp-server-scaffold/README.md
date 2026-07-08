@@ -141,6 +141,25 @@ python -m app.ingestion.pipeline --source referential --index referential
   `resources/`); pass `--path` explicitly to ingest something else (a PDF,
   your own OAS/referential source).
 
+  `--path` also accepts **multiple files and/or directories** in one run —
+  every matching-extension file inside a given directory is picked up
+  (non-recursive) — so several guideline docx files can be ingested into
+  the same `guidelines` index together:
+
+  ```bash
+  # explicit list
+  python -m app.ingestion.pipeline --source docx --index guidelines \
+      --path "./resources/API-Design-Guidelines.docx" "./resources/Org-API-Security-Guidelines.docx"
+
+  # or everything in a folder
+  python -m app.ingestion.pipeline --source docx --index guidelines --path ./resources/guidelines/
+  ```
+
+  All resolved files' units are loaded and chunked together in one pass;
+  each chunk still carries its own originating filename in
+  `metadata["source"]` (set by the loader), so chunks from different docx
+  files stay distinguishable even after landing in the same index.
+
 ### OCR: vision LLM, not a local binary
 
 Images embedded in ingested `.docx` files are read via the same
