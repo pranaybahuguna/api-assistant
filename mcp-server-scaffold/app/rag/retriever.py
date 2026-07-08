@@ -20,14 +20,3 @@ def retrieve_with_scores(
 
 def retrieve_guidelines(query: str, k: int = 5) -> list[Document]:
     return [d for d, _ in retrieve_with_scores(Index.GUIDELINES, query, k=k)]
-
-
-def retrieve_referential(query: str, k: int = 5) -> list[tuple[Document, float]]:
-    return retrieve_with_scores(Index.REFERENTIAL, query, k=k)
-
-
-def retrieve_registry(
-    query: str, k: int = 5, api_id: str | None = None
-) -> list[tuple[Document, float]]:
-    filters = {"api_id": api_id} if api_id else None
-    return retrieve_with_scores(Index.REGISTRY, query, k=k, filters=filters)

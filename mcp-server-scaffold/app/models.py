@@ -15,7 +15,7 @@ class GuidelineViolation(BaseModel):
     message: str
     path: str = ""                       # location inside the OAS
     severity: Literal["error", "warning", "info"] = "warning"
-    source: Literal["spectral", "rag", "referential", "registry"] = "spectral"
+    source: Literal["spectral", "rag"] = "spectral"
     rule_explanation: str | None = None  # enriched from the ruleset lookup dict
     suggested_fix: str | None = None
 
