@@ -3,12 +3,16 @@ Format-aware loaders. Each returns RawUnits — the smallest structural piece
 worth treating separately (a headed section, a table row, an OAS operation,
 a spec summary, an inventory entry).
 
-OCR: images embedded in .docx are extracted and OCR'd; the text is APPENDED
-to the section the image sits in (an image illustrates the rule around it,
-so it must not float as its own chunk). Requires tesseract installed
-(`apt install tesseract-ocr` + `pip install pytesseract pillow`); if
-missing, ingestion still works and just skips OCR with a warning.
+OCR: images embedded in .docx are extracted and read via the same
+OpenAI-compatible chat model used for fix_oas (a vision-capable call, not a
+local OCR binary) — the text is APPENDED to the section the image sits in
+(an image illustrates the rule around it, so it must not float as its own
+chunk). If the vision call fails (model doesn't support images, network
+error, etc.), ingestion still works and just skips that image's text with
+a warning.
 """
+import base64
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,13 +21,7 @@ import yaml
 from docx import Document as DocxDocument
 from pypdf import PdfReader
 
-try:
-    import pytesseract
-    from PIL import Image
-    import io
-    _OCR_AVAILABLE = True
-except ImportError:
-    _OCR_AVAILABLE = False
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,13 +30,30 @@ class RawUnit:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-def _ocr_image(image_bytes: bytes) -> str:
-    if not _OCR_AVAILABLE:
-        return ""
+_OCR_PROMPT = (
+    "Extract all readable text from this image verbatim, preserving line "
+    "breaks. If the image is a diagram, also briefly describe its structure "
+    "(boxes/arrows/flow) in one sentence before the extracted text. Return "
+    "only that — no commentary, no markdown fences."
+)
+
+
+def _ocr_image(image_bytes: bytes, content_type: str = "image/png") -> str:
+    """Read embedded-image text via the internal LLM's vision input, not a
+    local OCR binary — same OpenAI-compatible chat model fix_oas uses."""
     try:
-        img = Image.open(io.BytesIO(image_bytes))
-        return pytesseract.image_to_string(img).strip()
+        from langchain_core.messages import HumanMessage
+        from app.integrations.internal_llm import get_chat_model
+
+        b64 = base64.b64encode(image_bytes).decode()
+        message = HumanMessage(content=[
+            {"type": "text", "text": _OCR_PROMPT},
+            {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{b64}"}},
+        ])
+        response = get_chat_model().invoke([message])
+        return (response.content or "").strip()
     except Exception:
+        logger.warning("Vision OCR call failed; skipping this image's text", exc_info=True)
         return ""
 
 
@@ -53,9 +68,10 @@ def load_docx(path: str | Path) -> list[RawUnit]:
     source = Path(path).name
     units: list[RawUnit] = []
 
-    # Map image relationship id -> bytes, so inline images can be OCR'd.
+    # Map image relationship id -> (bytes, content_type), so inline images
+    # can be sent to the vision model with the right data URI mime type.
     image_parts = {
-        rel_id: rel.target_part.blob
+        rel_id: (rel.target_part.blob, rel.target_part.content_type)
         for rel_id, rel in doc.part.rels.items()
         if "image" in rel.reltype
     }
@@ -95,7 +111,8 @@ def load_docx(path: str | Path) -> list[RawUnit]:
                     "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
                 )
                 if rel_id in image_parts:
-                    ocr_text = _ocr_image(image_parts[rel_id])
+                    image_bytes, content_type = image_parts[rel_id]
+                    ocr_text = _ocr_image(image_bytes, content_type)
                     if ocr_text:
                         current_text.append(f"[image text] {ocr_text}")
                         current_has_ocr = True
