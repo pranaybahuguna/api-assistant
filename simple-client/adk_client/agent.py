@@ -7,15 +7,14 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 
 # Point LiteLLM at your internal OpenAI-compatible endpoint.
 # The "openai/" prefix tells LiteLLM to use the OpenAI-format client;
-# api_base + api_key redirect it to your internal LLM instead of api.openai.com.
 internal_llm = LiteLlm(
-    model="openai/your-internal-model-name",
-    api_base="https://your-internal-llm/v1",    
+    model="openai/gpt-4o",
+    api_base="https://api.openai.com/v1/",
 )
 
 root_agent = LlmAgent(
     model=internal_llm,
-    name="assistant",
+    name="cip_assist_client",
     instruction=(
         "You are a helpful assistant. Use the available tools when the user "
         "asks about weather or SIP/investment calculations. Otherwise answer "
