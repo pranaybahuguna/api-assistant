@@ -11,7 +11,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 internal_llm = LiteLlm(
     model="openai/gpt-4o",   # whatever model id your endpoint expects
     api_base="https://api.openai.com/v1",    # must end in /v1 for OpenAI-compatible APIs
-    api_key="",            # or a dummy value if the endpoint ignores it
+    api_key=""
 )
 
 root_agent = LlmAgent(
