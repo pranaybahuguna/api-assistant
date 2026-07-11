@@ -11,6 +11,15 @@ every response also carries a `next_step` field spelling out what to do
 with THIS result. Don't rely on a client-side instruction to know how to
 chain these tools; if you change the workflow, update it here first.
 
+Each docstring has a Google-style `Args:` section — FastMCP parses these
+into the JSON schema's per-parameter `description` fields (see
+`fastmcp/utilities/docstring_parsing.py`), so the schema a client actually
+sees carries real parameter guidance, not just names/types. Keep the
+top-level description focused on *when/why* to call the tool and *what to
+do with the result*; put exact response-formatting instructions in
+`next_step` (computed per-call, so it can vary with the actual result)
+rather than duplicating them here.
+
 Tool functions are plain `def` (not `async def`) on purpose: FastMCP runs
 sync tools in a worker thread by default (run_in_thread=True), which keeps
 the blocking Spectral subprocess / LLM / embeddings calls off the event
@@ -55,19 +64,17 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     whenever a user shares an OAS spec, asks if one is compliant, or after
     you (or the user) edit one following fix_oas's plan.
 
-    Runs the Spectral lint (findings enriched with rule explanations and
-    suggested fixes from the ruleset lookup) plus a Guidelines Index
-    retrieval for prose rules the linter can't check. Read-only — never
-    modifies oas_content. Pass the spec exactly as given/retrieved, never
-    reformatted. If the user only asked you to validate, this report IS the
-    final answer — do not proactively call fix_oas unless the user asks you
-    to fix or correct the spec. Present the result as exactly four
-    sections: (1) Spectral Lint Errors & Warnings (source=spectral-core),
-    (2) Custom Ruleset Recommendations & Warnings (source=custom-ruleset, with
-    rule_explanation/suggested_fix), (3) Org API Guideline Recommendations
-    (source=rag, cited via source_document/source_section), (4) Summary &
-    Next Steps. The response's next_step field restates this exactly —
-    follow it.
+    Read-only — never modifies oas_content. Runs the Spectral lint plus a
+    Guidelines Index retrieval for prose rules the linter can't check. If
+    the user only asked you to validate, this report IS the final answer —
+    do not proactively call fix_oas unless the user asks you to fix or
+    correct the spec. The response's next_step field gives the exact
+    section-by-section format to present the result in — follow it.
+
+    Args:
+        oas_content: The raw OpenAPI spec, exactly as given by the user or returned by search_api_registry — never reformatted or paraphrased before passing it in.
+        format: Whether oas_content is "yaml" or "json". Defaults to "yaml".
+        api_name: Optional human-readable name for the API, used only for server-side logging — has no effect on the validation result.
     """
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -88,6 +95,11 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     needs_judgment (a violation exists but the ruleset has no one-line fix
     — use rule_explanation to decide), and guideline_notes (prose context,
     each citing source_document/source_section it came from).
+
+    Args:
+        oas_content: The raw OpenAPI spec, exactly as given by the user or returned by search_api_registry — never reformatted or paraphrased before passing it in.
+        format: Whether oas_content is "yaml" or "json". Defaults to "yaml".
+        api_name: Optional human-readable name for the API, used only for server-side logging — has no effect on the fix plan.
     """
     logger.info("tools/call fix_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -100,11 +112,15 @@ def search_api_registry(query: str, top_k: int = 5, api_id: str | None = None) -
     per endpoint plus one spec-summary chunk per API) to find specific
     endpoints. Call this once you know which API you need.
 
-    Pass api_id (from search_api_referential) to restrict results to one
-    API — always do this if you already have an api_id, since an unfiltered
+    Always pass api_id when you already have one, since an unfiltered
     search can return endpoints from unrelated APIs. If you don't know the
     api_id yet, call search_api_referential first instead of guessing. Each
     hit carries source_document (the OAS filename it came from) — cite it.
+
+    Args:
+        query: What endpoint or functionality you're looking for, as a full descriptive sentence (e.g. "upload a document"), not keywords.
+        top_k: Maximum number of matching endpoint chunks to return. Defaults to 5.
+        api_id: Restrict results to one API's endpoints, e.g. "doc-mgmt-api" — get this from search_api_referential first if you don't already have it. Omit to search across all APIs.
     """
     logger.info("tools/call search_api_registry: query=%r top_k=%d api_id=%s", query, top_k, api_id)
     return t_registry.search_api_registry(SearchRegistryInput(query=query, top_k=top_k, api_id=api_id))
@@ -122,6 +138,10 @@ def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResul
     the chosen API's actual endpoints. If no candidate fits, say so
     plainly instead of proceeding with a guess. Each hit carries
     source_document (the inventory filename it came from) — cite it.
+
+    Args:
+        query: The user's need, as a full descriptive sentence (e.g. "store client documents"), not keywords.
+        top_k: Maximum number of candidate APIs to return. Defaults to 5.
     """
     logger.info("tools/call search_api_referential: query=%r top_k=%d", query, top_k)
     return t_referential.search_api_referential(SearchReferentialInput(query=query, top_k=top_k))
