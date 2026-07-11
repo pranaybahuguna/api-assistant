@@ -16,6 +16,8 @@ Tool usage rules:
 - Write full descriptive sentences as search queries, not keywords.
 - Pass OAS content to validate_oas / fix_oas exactly as given — never
   reformat it yourself first.
+- The fix flow is always: validate_oas first (diagnose, show the user),
+  then fix_oas (plan), then you edit, then validate_oas again (confirm).
 - fix_oas does NOT rewrite the spec — it returns a fix plan
   (mechanical_fixes with a concrete suggested_fix to apply as stated,
   needs_judgment findings with no one-line fix where you must use
