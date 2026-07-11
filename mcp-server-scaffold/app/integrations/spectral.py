@@ -10,6 +10,7 @@ plain file on the server — deliberately NOT vectorized):
 """
 import json
 import logging
+import os
 import subprocess
 import tempfile
 from functools import lru_cache
@@ -17,7 +18,6 @@ from pathlib import Path
 
 import yaml
 
-from app.config import get_settings
 from app.models import GuidelineViolation
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class SpectralError(RuntimeError):
 @lru_cache
 def get_rule_lookup() -> dict[str, dict]:
     """Parse the ruleset file into rule_id -> {description, severity, fix}."""
-    path = Path(get_settings().spectral_ruleset_path)
+    path = Path(os.environ.get("SPECTRAL_RULESET_PATH", "./resources/api-ruleset.yaml"))
     if not path.exists():
         return {}
     ruleset = yaml.safe_load(path.read_text()) or {}
@@ -60,7 +60,8 @@ def enrich(violation: GuidelineViolation) -> GuidelineViolation:
 
 
 def run_spectral(oas_content: str, fmt: str = "yaml") -> list[GuidelineViolation]:
-    settings = get_settings()
+    spectral_binary = os.environ.get("SPECTRAL_BINARY", "spectral")
+    ruleset_path = os.environ.get("SPECTRAL_RULESET_PATH", "./resources/api-ruleset.yaml")
     suffix = ".yaml" if fmt == "yaml" else ".json"
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as f:
@@ -70,13 +71,12 @@ def run_spectral(oas_content: str, fmt: str = "yaml") -> list[GuidelineViolation
     try:
         try:
             result = subprocess.run(
-                [settings.spectral_binary, "lint", str(tmp),
-                 "--ruleset", settings.spectral_ruleset_path, "--format", "json"],
+                [spectral_binary, "lint", str(tmp), "--ruleset", ruleset_path, "--format", "json"],
                 capture_output=True, text=True, timeout=60,
             )
         except FileNotFoundError as e:
             raise SpectralError(
-                f"Spectral binary not found at '{settings.spectral_binary}' — is it installed on PATH?"
+                f"Spectral binary not found at '{spectral_binary}' — is it installed on PATH?"
             ) from e
         except subprocess.TimeoutExpired as e:
             raise SpectralError("Spectral lint timed out after 60s") from e

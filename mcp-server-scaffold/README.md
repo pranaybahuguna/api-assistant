@@ -170,60 +170,34 @@ no separate OCR pipeline to keep in sync with the LLM client config. If the
 vision call fails (model doesn't support images, network error), ingestion
 continues and just skips that image's text with a logged warning.
 
-## Pluggable embeddings: OpenAI-wire-compatible now, custom REST gateway later
+## Embeddings: custom REST gateway
 
-`app/rag/embeddings.py` is a factory, `get_embeddings()`, branching on
-`EMBEDDING_BACKEND`:
-
-- **`openai`** (default) — `langchain_openai.OpenAIEmbeddings` against a
-  batched, OpenAI-wire-compatible `/embeddings` route via
-  `LLM_BASE_URL`/`LLM_API_KEY`.
-- **`rest`** — `app/rag/rest_embeddings.py`'s `RestEmbeddings`, for
-  internal gateways that speak a different wire format entirely: **one
-  HTTP call per text** (not batched), payload shape
-  `{"model": ..., "input": "<single string>"}`, response parsed as
-  `data["data"][0]["embedding"]`, bearer auth from `LLM_API_KEY`, and an
-  optional custom TLS trust store (`EMBEDDING_CERT_PATH`, injected via a
-  `requests.adapters.HTTPAdapter` subclass that builds its own
-  `ssl.SSLContext` — for gateways whose certificate isn't in the system
-  default CA bundle).
-
-Both implement LangChain's `Embeddings` interface
-(`embed_documents`/`embed_query`), so nothing downstream — `vector_store.py`,
-the ingestion pipeline, any tool — needs to know or care which one is
-active. Switching is a `.env` change only:
+`app/rag/embeddings.py`'s `get_embeddings()` returns a LangChain
+`Embeddings` implementation that calls a custom internal gateway directly —
+**one HTTP call per text** (not batched), payload shape
+`{"model": ..., "input": "<single string>"}`, response parsed as
+`data["data"][0]["embedding"]`, bearer auth from `LLM_API_KEY`, and an
+optional custom TLS trust store (`EMBEDDING_CERT_PATH`, injected via a
+`requests.adapters.HTTPAdapter` subclass that builds its own
+`ssl.SSLContext` — for gateways whose certificate isn't in the system
+default CA bundle). Configure the endpoint in `.env`:
 
 ```bash
-EMBEDDING_BACKEND=rest
 EMBEDDING_ENDPOINT_URL=https://embeddings-gateway.example.com/embeddings
+EMBEDDING_MODEL=text-embedding-3-large
 EMBEDDING_CERT_PATH=./resources/combined_trust_store.pem   # optional
 ```
 
-## Pluggable vector store: FAISS now, pgvector or OpenSearch later
+## Vector store: FAISS
 
-`app/rag/vector_store.py`'s `get_vector_store(index)` is a factory
-branching on `VECTOR_BACKEND`, one `elif` per backend:
-
-- **`faiss`** (default, POC) — file-based, saved under
-  `./vector_data/<index>/`. Nothing to install or run. FAISS is in-memory
-  until `save_faiss(index)` is called explicitly (the ingestion pipeline
-  does this after every `add_documents`); a process-local cache
-  (`_faiss_cache`) avoids re-loading from disk on every call within the
-  same process. If no index file exists yet, a bootstrap placeholder
-  document is created so `similarity_search` never errors on an empty
-  index — `retrieve_with_scores` filters this placeholder back out.
-- **`pgvector`** — `langchain_postgres.PGVector`, deferred-imported so the
-  POC doesn't need `psycopg` installed unless this backend is actually
-  selected. Needs `VECTOR_DB_URL`.
-- **`opensearch`** — `langchain_community.vectorstores.OpenSearchVectorSearch`,
-  same deferred-import pattern. Needs `OPENSEARCH_URL` (+ optionally
-  `OPENSEARCH_USERNAME`/`OPENSEARCH_PASSWORD`/`OPENSEARCH_VERIFY_CERTS`).
-
-Every caller only ever sees LangChain's `VectorStore` interface
-(`similarity_search_with_score`, `add_documents`), so swapping backends —
-including combining it with either embeddings backend above — never
-touches `app/tools/*.py`, `app/rag/retriever.py`, or the ingestion
-pipeline. Add a fourth backend by adding one more `elif` branch here.
+`app/rag/vector_store.py`'s `get_vector_store(index)` returns a file-based
+FAISS store under `./vector_data/<index>/` — nothing else to install or
+run. FAISS is in-memory until `save_faiss(index)` is called explicitly
+(the ingestion pipeline does this after every `add_documents`); a
+process-local cache (`_faiss_cache`) avoids re-loading from disk on every
+call within the same process. If no index file exists yet, a bootstrap
+placeholder document is created so `similarity_search` never errors on an
+empty index — `retrieve_with_scores` filters this placeholder back out.
 
 ## Spectral: a file, not an index
 
@@ -263,19 +237,19 @@ your own sources any time; see Quickstart below for how ingestion finds them.
 
 ## Configuration reference (`.env`)
 
+Every value is read straight from the environment where it's used
+(`os.environ.get(...)`, with an inline default) — there's no central
+settings object duplicating these across `.env` and Python.
+
 | Variable | Default | Purpose |
 |---|---|---|
-| `VECTOR_BACKEND` | `faiss` | `faiss` \| `pgvector` \| `opensearch` |
 | `FAISS_DIR` | `./vector_data` | Where FAISS index files are saved |
-| `VECTOR_DB_URL` | — | Postgres DSN, only when `VECTOR_BACKEND=pgvector` |
-| `OPENSEARCH_URL` / `OPENSEARCH_USERNAME` / `OPENSEARCH_PASSWORD` / `OPENSEARCH_VERIFY_CERTS` | — | Only when `VECTOR_BACKEND=opensearch` |
 | `LLM_BASE_URL` | internal gateway URL | Chat model base URL (OpenAI-compatible) |
-| `LLM_API_KEY` | `changeme` | Bearer key for chat, and for the `rest` embeddings backend |
+| `LLM_API_KEY` | `changeme` | Bearer key for chat and for the embeddings gateway |
 | `CHAT_MODEL` | `internal-llm` | Model name used by `fix_oas` and image OCR |
-| `EMBEDDING_BACKEND` | `openai` | `openai` \| `rest` |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | Model name sent to whichever embeddings backend is active |
-| `EMBEDDING_ENDPOINT_URL` | — | Only when `EMBEDDING_BACKEND=rest` |
-| `EMBEDDING_CERT_PATH` | — | Optional custom CA bundle, only for the `rest` backend |
+| `EMBEDDING_ENDPOINT_URL` | — | Required — the custom embeddings gateway URL |
+| `EMBEDDING_MODEL` | `text-embedding-3-large` | Model name sent to the embeddings gateway |
+| `EMBEDDING_CERT_PATH` | — | Optional custom CA bundle for the embeddings gateway |
 | `SPECTRAL_RULESET_PATH` | `./resources/api-ruleset.yaml` | Ruleset file passed to the Spectral CLI |
 | `SPECTRAL_BINARY` | `spectral` | Spectral CLI binary name/path |
 | `FASTMCP_CHECK_FOR_UPDATES` | `off` | Disables FastMCP's startup version-check network call (internal, egress-restricted network) |

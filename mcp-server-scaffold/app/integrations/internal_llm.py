@@ -1,12 +1,13 @@
-"""
-Chat client for the internal Org-hosted LLM (OpenAI-compatible gateway).
-Used by fix_oas for the rewrite step. Same base_url/api_key pattern as the
-embeddings wrapper.
-"""
+"""Chat client for the internal Org-hosted LLM (OpenAI-compatible gateway).
+Used by fix_oas for the rewrite step and by loaders.py for image OCR."""
+import os
 from langchain_openai import ChatOpenAI
-from app.config import get_settings
 
 
 def get_chat_model() -> ChatOpenAI:
-    s = get_settings()
-    return ChatOpenAI(model=s.chat_model, base_url=s.llm_base_url, api_key=s.llm_api_key, temperature=0)
+    return ChatOpenAI(
+        model=os.environ.get("CHAT_MODEL", "internal-llm"),
+        base_url=os.environ.get("LLM_BASE_URL", "https://llm-gateway.example.com/v1"),
+        api_key=os.environ.get("LLM_API_KEY", "changeme"),
+        temperature=0,
+    )

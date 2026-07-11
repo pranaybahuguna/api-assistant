@@ -1,8 +1,6 @@
 """
 FastMCP entrypoint — the four tools exposed over the Model Context Protocol
-(Streamable HTTP transport) at POST/GET /mcp, so any MCP-aware client (the
-ADK client via McpToolset, or the API Assistant directly) gets tool discovery and
-JSON schemas from the protocol itself instead of a hand-rolled REST catalogue.
+(Streamable HTTP transport) at POST/GET /mcp.
 
 Tool functions are plain `def` (not `async def`) on purpose: FastMCP runs
 sync tools in a worker thread by default (run_in_thread=True), which keeps
@@ -13,12 +11,8 @@ Run:
     python -m app.main
     # or: fastmcp run app.main:mcp --transport streamable-http --port 8080
 """
-import logging
-
 from fastmcp import FastMCP
-from fastmcp.exceptions import ToolError
 
-from app.integrations.spectral import SpectralError
 from app.models import (
     OASInput, ValidateOASResult, FixOASResult,
     SearchRegistryInput, SearchRegistryResult,
@@ -28,29 +22,8 @@ from app.tools import validate_oas as t_validate
 from app.tools import fix_oas as t_fix
 from app.tools import search_api_registry as t_registry
 from app.tools import search_api_referential as t_referential
-from app.tools.fix_oas import LLMResponseError
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-logger = logging.getLogger(__name__)
-
-# Errors callers are meant to see verbatim (bad input, tool misconfig, etc.)
-# — everything else is logged in full here and masked from the client by
-# mask_error_details, since a raw traceback is not something to hand back
-# over the API gateway to an arbitrary caller.
-_EXPECTED_ERRORS = (SpectralError, LLMResponseError)
-
-mcp = FastMCP(name="API Assistant — MCP Server", version="0.1.0", mask_error_details=True)
-
-
-def _guarded(tool_name: str, fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs)
-    except _EXPECTED_ERRORS as e:
-        logger.warning("%s: %s", tool_name, e)
-        raise ToolError(str(e)) from e
-    except Exception:
-        logger.exception("%s: unhandled error", tool_name)
-        raise
+mcp = FastMCP(name="API Assistant — MCP Server", version="0.1.0")
 
 
 @mcp.tool
@@ -62,8 +35,7 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     retrieval for prose rules the linter can't check. Does not modify the
     spec — use fix_oas for that.
     """
-    payload = OASInput(oas_content=oas_content, format=format, api_name=api_name)
-    return _guarded("validate_oas", t_validate.validate_oas, payload)
+    return t_validate.validate_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
 
 @mcp.tool
@@ -73,8 +45,7 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     Returns the corrected spec, the list of changes made, and any
     violations that could not be auto-fixed.
     """
-    payload = OASInput(oas_content=oas_content, format=format, api_name=api_name)
-    return _guarded("fix_oas", t_fix.fix_oas, payload)
+    return t_fix.fix_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
 
 @mcp.tool
@@ -85,8 +56,7 @@ def search_api_registry(query: str, top_k: int = 5, api_id: str | None = None) -
     Optionally filter by api_id to see only one API's endpoints — use
     search_api_referential first to find the api_id.
     """
-    payload = SearchRegistryInput(query=query, top_k=top_k, api_id=api_id)
-    return _guarded("search_api_registry", t_registry.search_api_registry, payload)
+    return t_registry.search_api_registry(SearchRegistryInput(query=query, top_k=top_k, api_id=api_id))
 
 
 @mcp.tool
@@ -97,8 +67,7 @@ def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResul
     Searches the API Referential inventory and returns candidates with
     their api_id for a follow-up search_api_registry call.
     """
-    payload = SearchReferentialInput(query=query, top_k=top_k)
-    return _guarded("search_api_referential", t_referential.search_api_referential, payload)
+    return t_referential.search_api_referential(SearchReferentialInput(query=query, top_k=top_k))
 
 
 # Single Starlette app, built once — this is what `uvicorn app.main:app`
