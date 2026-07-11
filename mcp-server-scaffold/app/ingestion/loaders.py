@@ -12,7 +12,6 @@ ingestion still works and just skips that image's text with a warning.
 """
 import base64
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -44,15 +43,14 @@ def _ocr_image(image_bytes: bytes, content_type: str = "image/png") -> str:
     OCR deployment), otherwise falls back to CHAT_MODEL."""
     try:
         from langchain_core.messages import HumanMessage
-        from app.integrations.internal_llm import get_chat_model
+        from app.integrations.internal_llm import get_ocr_model
 
         b64 = base64.b64encode(image_bytes).decode()
         message = HumanMessage(content=[
             {"type": "text", "text": _OCR_PROMPT},
             {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{b64}"}},
         ])
-        model = get_chat_model(model=os.environ.get("OCR_MODEL"))
-        response = model.invoke([message])
+        response = get_ocr_model().invoke([message])
         return (response.content or "").strip()
     except Exception:
         logger.warning("Vision OCR call failed; skipping this image's text", exc_info=True)
