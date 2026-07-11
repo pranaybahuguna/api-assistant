@@ -45,6 +45,33 @@ catalogue to keep in sync.
 | `search_api_registry` | Endpoint-level semantic search over ingested OAS specs; supports `api_id` filter |
 | `search_api_referential` | API discovery — "which API do I need for X"; returns `api_id` for a follow-up registry search |
 
+## Self-guiding tools: no reliance on a client-side system prompt
+
+The calling agent may be a generic MCP client you don't control — no
+custom instruction/system prompt telling it how these four tools relate to
+each other. So that guidance can't live only in `mcp-client-scaffold`'s
+agent instructions; it lives here, in two places every MCP client sees
+regardless of its own prompt:
+
+1. **Tool docstrings** (`app/main.py`) — each one states when to call it,
+   what to pass, and what to do with the result (e.g.
+   `search_api_referential`: "Call this FIRST... do not guess or invent an
+   API"; `fix_oas`: "Call this after validate_oas reports
+   is_valid=false... YOU must edit oas_content yourself"). `tools/list`
+   surfaces these to any client before it ever calls a tool.
+2. **A `next_step` field on every response** (`app/models.py`) — computed
+   from the actual result, not static text, so it stays correct call to
+   call: `validate_oas` says "call fix_oas" only when there are errors;
+   `search_api_registry` warns "results span multiple APIs" only when they
+   actually do; `fix_oas` spells out exactly which fields to act on.
+
+`mcp-client-scaffold`'s agent instructions still exist and reinforce the
+same workflow, but treat them as a convenience, not a dependency — a
+generic agent with no custom prompt at all should still use these tools
+correctly from `tools/list` + `next_step` alone. If you change how the
+tools should be chained, update the docstrings/next_step logic here first;
+a client-side prompt update alone won't reach a client you don't control.
+
 ### validate_oas / fix_oas — how validation actually works
 
 Both tools check a spec against exactly two sources of truth, nothing else

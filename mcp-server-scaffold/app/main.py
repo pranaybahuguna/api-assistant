@@ -2,6 +2,15 @@
 FastMCP entrypoint — the four tools exposed over the Model Context Protocol
 (Streamable HTTP transport) at POST/GET /mcp.
 
+Every tool's docstring here is written to stand on its own: the calling
+agent may be a generic client with no custom system prompt telling it how
+these tools relate to each other, so the workflow guidance (call order,
+what to do with the result) lives in the docstrings themselves — which
+`tools/list` surfaces to any MCP client regardless of its own prompt — and
+every response also carries a `next_step` field spelling out what to do
+with THIS result. Don't rely on a client-side instruction to know how to
+chain these tools; if you change the workflow, update it here first.
+
 Tool functions are plain `def` (not `async def`) on purpose: FastMCP runs
 sync tools in a worker thread by default (run_in_thread=True), which keeps
 the blocking Spectral subprocess / LLM / embeddings calls off the event
@@ -31,26 +40,31 @@ mcp = FastMCP(name="API Assistant — MCP Server", version="0.1.0")
 
 @mcp.tool
 def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = None) -> ValidateOASResult:
-    """Validate an OpenAPI spec against API Design Guidelines.
+    """Validate an OpenAPI spec against API Design Guidelines. Call this
+    whenever a user shares an OAS spec, asks if one is compliant, or after
+    you (or the user) edit one following fix_oas's plan.
 
     Runs the Spectral lint (findings enriched with rule explanations and
     suggested fixes from the ruleset lookup) plus a Guidelines Index
-    retrieval for prose rules the linter can't check. Does not modify the
-    spec — use fix_oas for that.
+    retrieval for prose rules the linter can't check. Read-only — never
+    modifies oas_content. Pass the spec exactly as given/retrieved, never
+    reformatted. If is_valid is false, call fix_oas next; the response's
+    next_step field always says exactly what to do with this result.
     """
     return t_validate.validate_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
 
 @mcp.tool
 def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None) -> FixOASResult:
-    """Get a fix plan for an OpenAPI spec against API Design Guidelines.
+    """Get a fix plan for a non-compliant OpenAPI spec. Call this after
+    validate_oas reports is_valid=false.
 
-    Does NOT rewrite the spec — apply the fixes yourself. Returns
-    mechanical_fixes (each has a concrete suggested_fix from the ruleset —
-    apply as stated), needs_judgment (a violation exists but the ruleset
-    has no one-line fix — use rule_explanation to decide how to resolve
-    it), and guideline_notes (prose context for rules Spectral can't check
-    structurally). After editing, call validate_oas again to confirm.
+    Does NOT rewrite the spec — YOU (the calling agent) must edit
+    oas_content yourself using this plan, then call validate_oas again on
+    your edited version to confirm. Returns mechanical_fixes (each has a
+    concrete suggested_fix from the ruleset — apply as stated),
+    needs_judgment (a violation exists but the ruleset has no one-line fix
+    — use rule_explanation to decide), and guideline_notes (prose context).
     """
     return t_fix.fix_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
@@ -58,10 +72,13 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
 @mcp.tool
 def search_api_registry(query: str, top_k: int = 5, api_id: str | None = None) -> SearchRegistryResult:
     """Semantic search over the Org API Registry (OpenAPI specs, one chunk
-    per endpoint plus one spec-summary chunk per API).
+    per endpoint plus one spec-summary chunk per API) to find specific
+    endpoints. Call this once you know which API you need.
 
-    Optionally filter by api_id to see only one API's endpoints — use
-    search_api_referential first to find the api_id.
+    Pass api_id (from search_api_referential) to restrict results to one
+    API — always do this if you already have an api_id, since an unfiltered
+    search can return endpoints from unrelated APIs. If you don't know the
+    api_id yet, call search_api_referential first instead of guessing.
     """
     return t_registry.search_api_registry(SearchRegistryInput(query=query, top_k=top_k, api_id=api_id))
 
@@ -69,10 +86,14 @@ def search_api_registry(query: str, top_k: int = 5, api_id: str | None = None) -
 @mcp.tool
 def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResult:
     """Find which Org API to use for a need described in natural language
-    (e.g. "store client documents").
+    (e.g. "store client documents"). Call this FIRST whenever a user
+    describes a need but doesn't name a specific, known API — do not guess
+    or invent an API name/id yourself.
 
     Searches the API Referential inventory and returns candidates with
-    their api_id for a follow-up search_api_registry call.
+    their api_id — pass that api_id into search_api_registry next to see
+    the chosen API's actual endpoints. If no candidate fits, say so
+    plainly instead of proceeding with a guess.
     """
     return t_referential.search_api_referential(SearchReferentialInput(query=query, top_k=top_k))
 

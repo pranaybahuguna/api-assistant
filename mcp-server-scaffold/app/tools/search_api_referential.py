@@ -6,12 +6,6 @@ from app.models import SearchReferentialInput, SearchReferentialResult, Referent
 from app.rag.retriever import retrieve_with_scores
 from app.rag.vector_store import Index
 
-TOOL_DESCRIPTION = (
-    "Find which Org API to use for a need described in natural language "
-    "(e.g. 'store documents'). Searches the API Referential inventory and "
-    "returns candidates with their api_id for follow-up registry searches."
-)
-
 
 def search_api_referential(payload: SearchReferentialInput) -> SearchReferentialResult:
     results = retrieve_with_scores(Index.REFERENTIAL, payload.query, k=payload.top_k)
@@ -25,4 +19,12 @@ def search_api_referential(payload: SearchReferentialInput) -> SearchReferential
         )
         for d, score in results
     ]
-    return SearchReferentialResult(hits=hits, summary=f"{len(hits)} candidate API(s).")
+
+    if hits:
+        next_step = (f"Call search_api_registry with api_id='{hits[0].api_id}' (the best match — "
+                     f"or another candidate's api_id if it fits the user's need better) to see "
+                     f"that API's endpoints.")
+    else:
+        next_step = "No matching API found. Tell the user plainly — do not invent an API or a URL."
+
+    return SearchReferentialResult(hits=hits, summary=f"{len(hits)} candidate API(s).", next_step=next_step)

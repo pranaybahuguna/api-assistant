@@ -10,13 +10,6 @@ from app.models import OASInput, FixOASResult
 from app.integrations.spectral import run_spectral
 from app.tools.validate_oas import guideline_context
 
-TOOL_DESCRIPTION = (
-    "Produce a fix plan for an OpenAPI spec against Org API Design "
-    "Guidelines: Spectral findings split into ones with a concrete "
-    "suggested fix vs. ones needing judgment, plus relevant guideline "
-    "excerpts. Does not rewrite the spec — the caller applies the fixes."
-)
-
 
 def fix_oas(payload: OASInput) -> FixOASResult:
     findings = run_spectral(payload.oas_content, payload.format)
@@ -25,6 +18,19 @@ def fix_oas(payload: OASInput) -> FixOASResult:
     mechanical = [v for v in findings if v.suggested_fix]
     needs_judgment = [v for v in findings if not v.suggested_fix]
 
+    if not findings:
+        next_step = "No violations found — spec already complies. No changes needed."
+    else:
+        parts = []
+        if mechanical:
+            parts.append("apply each mechanical_fixes entry's suggested_fix as stated")
+        if needs_judgment:
+            parts.append("for each needs_judgment entry, use its rule_explanation "
+                          "(and guideline_notes for context) to decide the right change")
+        next_step = ("You (the calling agent) must edit oas_content yourself — this tool does "
+                     "not rewrite it: " + "; ".join(parts) + ". Then call validate_oas on your "
+                     "edited spec to confirm the fixes actually resolved the findings.")
+
     return FixOASResult(
         mechanical_fixes=mechanical,
         needs_judgment=needs_judgment,
@@ -32,4 +38,5 @@ def fix_oas(payload: OASInput) -> FixOASResult:
         summary=f"{len(findings)} Spectral finding(s): {len(mechanical)} with a concrete "
                 f"suggested fix, {len(needs_judgment)} needing judgment; "
                 f"{len(notes)} guideline note(s) for context.",
+        next_step=next_step,
     )

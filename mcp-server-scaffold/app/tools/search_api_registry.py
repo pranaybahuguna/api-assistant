@@ -7,12 +7,6 @@ from app.models import SearchRegistryInput, SearchRegistryResult, RegistryHit
 from app.rag.retriever import retrieve_with_scores
 from app.rag.vector_store import Index
 
-TOOL_DESCRIPTION = (
-    "Semantic search over the Org API Registry (OpenAPI specs, one chunk "
-    "per endpoint). Optionally filter by api_id to see only one API's "
-    "endpoints — use search_api_referential first to find the api_id."
-)
-
 
 def search_api_registry(payload: SearchRegistryInput) -> SearchRegistryResult:
     filters = {"api_id": payload.api_id} if payload.api_id else None
@@ -29,4 +23,15 @@ def search_api_registry(payload: SearchRegistryInput) -> SearchRegistryResult:
         )
         for d, score in results
     ]
-    return SearchRegistryResult(hits=hits, summary=f"{len(hits)} matching chunk(s).")
+
+    distinct_apis = {h.api_id for h in hits}
+    if not hits:
+        next_step = ("No matching endpoints found. If you haven't already, call "
+                      "search_api_referential first to confirm which API to search.")
+    elif not payload.api_id and len(distinct_apis) > 1:
+        next_step = ("Results span multiple APIs — call search_api_referential to pick the "
+                      "right one, then re-run this search with that api_id for focused results.")
+    else:
+        next_step = "Use these endpoint(s) directly to answer the user's question."
+
+    return SearchRegistryResult(hits=hits, summary=f"{len(hits)} matching chunk(s).", next_step=next_step)

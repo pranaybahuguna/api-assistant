@@ -24,6 +24,7 @@ class ValidateOASResult(BaseModel):
     is_valid: bool
     violations: list[GuidelineViolation]
     summary: str
+    next_step: str  # what the caller should do next, given this result
 
 
 class FixOASResult(BaseModel):
@@ -31,6 +32,7 @@ class FixOASResult(BaseModel):
     needs_judgment: list[GuidelineViolation]      # no suggested_fix — decide using rule_explanation
     guideline_notes: list[GuidelineViolation]     # prose context from the Guidelines Index
     summary: str
+    next_step: str  # what the caller should do next, given this result
 
 
 # ---------- search_api_registry ----------
@@ -53,6 +55,7 @@ class RegistryHit(BaseModel):
 class SearchRegistryResult(BaseModel):
     hits: list[RegistryHit]
     summary: str
+    next_step: str  # what the caller should do next, given this result
 
 
 # ---------- search_api_referential ----------
@@ -73,3 +76,4 @@ class ReferentialHit(BaseModel):
 class SearchReferentialResult(BaseModel):
     hits: list[ReferentialHit]
     summary: str
+    next_step: str  # what the caller should do next, given this result

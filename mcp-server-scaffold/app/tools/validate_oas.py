@@ -7,12 +7,6 @@ from app.models import OASInput, ValidateOASResult, GuidelineViolation
 from app.integrations.spectral import run_spectral
 from app.rag.retriever import retrieve_guidelines
 
-TOOL_DESCRIPTION = (
-    "Validate an OpenAPI spec against API Design Guidelines. Returns "
-    "violations (with rule explanations and suggested fixes) plus relevant "
-    "guideline excerpts. Does not modify the spec."
-)
-
 
 def guideline_context(oas_content: str, k: int = 4) -> list[GuidelineViolation]:
     """Surface guideline chunks relevant to this OAS as informational notes."""
@@ -32,9 +26,20 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
     spectral = run_spectral(payload.oas_content, payload.format)
     notes = guideline_context(payload.oas_content)
     errors = [v for v in spectral if v.severity == "error"]
+
+    if errors:
+        next_step = ("Call fix_oas with this same oas_content to get a fix plan, apply the "
+                     "fixes yourself, then call validate_oas again on your edited spec.")
+    elif spectral:
+        next_step = ("No blocking errors, but there are warnings above — review them and the "
+                     "guideline notes (source=rag), then decide whether to fix or accept them.")
+    else:
+        next_step = "Spec is fully compliant. Review the guideline notes (source=rag) for any manual judgment calls; no fix needed."
+
     return ValidateOASResult(
         is_valid=not errors,
         violations=spectral + notes,
         summary=f"{len(spectral)} Spectral finding(s) ({len(errors)} error(s)); "
                 f"{len(notes)} guideline note(s) from the knowledge base.",
+        next_step=next_step,
     )
