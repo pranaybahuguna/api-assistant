@@ -37,13 +37,11 @@ from app.models import (
     OASInput, ValidateOASResult, FixOASResult,
     SearchRegistryInput, SearchRegistryResult,
     SearchReferentialInput, SearchReferentialResult,
-    GuidelineSectionInput, GetGuidelineSectionResult,
 )
 from app.tools import validate_oas as t_validate
 from app.tools import fix_oas as t_fix
 from app.tools import search_api_registry as t_registry
 from app.tools import search_api_referential as t_referential
-from app.tools import get_guideline_section as t_section
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -64,11 +62,8 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     reformatted. If the user only asked you to validate, this report IS the
     final answer — do not proactively call fix_oas unless the user asks you
     to fix or correct the spec. The response's next_step field says exactly
-    what to do with this result. Findings carry source_document/
-    source_section citations (custom-ruleset ones also carry the guideline
-    prose they enforce in guideline_excerpt) — cite these when quoting a
-    guideline; the guidelines_toc field lists every section (fetch any in
-    full with get_guideline_section).
+    what to do with this result. Every source="rag" violation carries
+    source_document/source_section — cite these when quoting a guideline.
     """
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -78,24 +73,17 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
 @mcp.tool
 def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None) -> FixOASResult:
     """Get a fix plan for a non-compliant OpenAPI spec. Only call this if
-    the user asks you to fix/correct the spec; if the user only asked to
-    validate, stop at the validate_oas report.
+    the user asks you to fix/correct the spec — validate_oas reporting
+    is_valid=false is a precondition, not by itself a reason to call this;
+    if the user only asked to validate, stop at the validate_oas report.
 
-    The standard flow is ALWAYS: (1) validate_oas first — diagnose and
-    show the user what's broken; (2) fix_oas — get this plan; (3) edit
-    oas_content yourself; (4) validate_oas on your edited version to
-    confirm the findings are resolved. Do not skip step 1 — the user
-    should see the diagnosis before the treatment. (This tool re-runs
-    validation internally as a stateless safety net, so its plan is always
-    derived from fresh findings — but that is a safeguard, not a license
-    to skip the explicit validate step.)
-
-    Does NOT rewrite the spec — YOU (the calling agent) edit it. Returns
-    mechanical_fixes (each has a concrete suggested_fix from the ruleset,
-    with the guideline prose it enforces in guideline_excerpt — apply as
-    stated), needs_judgment (a violation exists but the ruleset has no
-    one-line fix — use rule_explanation to decide), and guideline_notes
-    (prose context with citations).
+    Does NOT rewrite the spec — YOU (the calling agent) must edit
+    oas_content yourself using this plan, then call validate_oas again on
+    your edited version to confirm. Returns mechanical_fixes (each has a
+    concrete suggested_fix from the ruleset — apply as stated),
+    needs_judgment (a violation exists but the ruleset has no one-line fix
+    — use rule_explanation to decide), and guideline_notes (prose context,
+    each citing source_document/source_section it came from).
     """
     logger.info("tools/call fix_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -133,24 +121,6 @@ def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResul
     """
     logger.info("tools/call search_api_referential: query=%r top_k=%d", query, top_k)
     return t_referential.search_api_referential(SearchReferentialInput(query=query, top_k=top_k))
-
-
-@mcp.tool
-def get_guideline_section(section: str, document: str | None = None) -> GetGuidelineSectionResult:
-    """Fetch the full text of a named Org design-guidelines section, by
-    name (case-insensitive fragment works: 'idempotency' finds
-    '4. Idempotency'). Call this when the user asks about a specific
-    guideline topic in depth, or when a validate_oas/fix_oas finding cites
-    a source_section you need the complete text of — top-k retrieval only
-    surfaces excerpts; this returns the whole section.
-
-    The guidelines_toc field on validate_oas/fix_oas responses lists every
-    section that exists — pick names from there. Optionally pass document
-    to disambiguate when multiple guideline documents are ingested. Quote
-    results with their document/section citation.
-    """
-    logger.info("tools/call get_guideline_section: section=%r document=%s", section, document)
-    return t_section.get_guideline_section(GuidelineSectionInput(section=section, document=document))
 
 
 # Single Starlette app, built once — this is what `uvicorn app.main:app`

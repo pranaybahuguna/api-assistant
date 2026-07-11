@@ -1,6 +1,6 @@
 # API Assistant — MCP Server (Phase 1 scaffold, FastMCP + FAISS)
 
-A [FastMCP](https://github.com/jlowin/fastmcp) server that exposes five
+A [FastMCP](https://github.com/jlowin/fastmcp) server that exposes four
 tools over the real Model Context Protocol (Streamable HTTP transport,
 single endpoint at `/mcp`, sitting behind the API gateway in prod). Any MCP-aware
 client — the companion `mcp-client-scaffold` (Google ADK) or the API Assistant
@@ -17,7 +17,7 @@ catalogue to keep in sync.
                                         ▼
                          ┌─────────────────────────────┐
                          │   FastMCP server (app/main.py)│
-                         │   5 tools, tools/list+call     │
+                         │   4 tools, tools/list+call     │
                          └──────┬──────────────┬─────────┘
                                 │              │
                     ┌───────────┘              └───────────┐
@@ -36,7 +36,7 @@ catalogue to keep in sync.
                                                  └─────────────────────────┘
 ```
 
-## The five tools
+## The four tools
 
 | Tool | Purpose |
 |---|---|
@@ -44,27 +44,6 @@ catalogue to keep in sync.
 | `fix_oas` | Same checks, reshaped into a fix plan (report only — no LLM call, no rewrite; the calling agent applies the fixes) |
 | `search_api_registry` | Endpoint-level semantic search over ingested OAS specs; supports `api_id` filter |
 | `search_api_referential` | API discovery — "which API do I need for X"; returns `api_id` for a follow-up registry search |
-| `get_guideline_section` | Fetch a named guidelines section in full, by exact metadata match (no similarity search) |
-
-## The validate / fix flows
-
-**"Validate my OAS"** — one call, terminal. `validate_oas` reports; the
-agent presents the findings and stops. It never fixes unless the user
-separately asks.
-
-**"Fix my OAS"** — the canonical sequence, in this order:
-
-```
-1. validate_oas(original)   — diagnose; show the user what's broken
-2. fix_oas(original)        — get the plan (runs the same checks itself,
-                              statelessly; never fixes blind)
-3. agent edits the spec     — its own LLM; zero server involvement
-4. validate_oas(edited)     — confirm the findings are actually resolved
-```
-
-Diagnosis always precedes treatment; the final validation is confirmation,
-not diagnosis. Only `validate_oas` can pronounce a spec valid; `fix_oas`
-has no `is_valid` field and no rewritten-spec output, by design.
 
 ## Self-guiding tools: no reliance on a client-side system prompt
 
@@ -176,28 +155,16 @@ This is how `validate_oas`/`fix_oas` findings (across all three sources)
 and both search tools' hits can be cited back to a specific document (and
 section, where applicable) rather than presented as unsourced text.
 
-### Pulling actual section text: excerpts, TOC, and get_guideline_section
-
-Every `custom-ruleset` finding carries the actual guideline prose of the
-section it enforces (`guideline_excerpt`), fetched by exact section-name
-match against the finding's `x-guideline-section` — no similarity search
-involved. And the whole corpus is always navigable: every validate/fix
-response includes `guidelines_toc` (each document's section list, built
-from chunk metadata with no embedding call), and the
-`get_guideline_section` tool returns any named section in full — so the
-calling agent is never limited to whatever top-k retrieval surfaced.
-
-**Retrieval limitation to know about**: `guideline_context()`
+**Important limitation to know about**: `guideline_context()`
 (`app/tools/validate_oas.py`) does **one blanket retrieval per call**, not
 retrieval per Spectral finding — it embeds `"API design rules relevant
 to: " + oas_content[:600]` once and returns the top-k nearest guideline
 chunks for the spec as a whole. It is not "for finding X, fetch the
-guideline section about X" (except for custom-ruleset findings, whose
-`guideline_excerpt` IS exactly that, via section match rather than
-retrieval). The Spectral findings' own `rule_explanation`/`suggested_fix`
-are unrelated to vector retrieval too — those come from a deterministic
-dict lookup by `rule_id` against `resources/api-ruleset.yaml`'s
-`description`/`x-fix` fields (`app/integrations/spectral.py`).
+guideline section about X." The Spectral findings' own
+`rule_explanation`/`suggested_fix` are unrelated to this — those come from
+a deterministic dict lookup by `rule_id` against
+`resources/api-ruleset.yaml`'s `description`/`x-fix` fields
+(`app/integrations/spectral.py`), not from vector retrieval at all.
 
 ### Logging: every tool call is logged twice
 

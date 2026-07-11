@@ -7,7 +7,7 @@ import logging
 
 from app.models import OASInput, ValidateOASResult, GuidelineViolation
 from app.integrations.spectral import run_spectral
-from app.rag.retriever import retrieve_guidelines, get_section_chunks, build_guidelines_toc
+from app.rag.retriever import retrieve_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -29,20 +29,8 @@ def guideline_context(oas_content: str, k: int = 4) -> list[GuidelineViolation]:
     ]
 
 
-def attach_guideline_excerpts(findings: list[GuidelineViolation]) -> None:
-    """Give each custom-ruleset finding the actual prose of the guideline
-    section it enforces (via the rule's x-guideline-section citation) —
-    exact section-name fetch, no similarity search."""
-    for v in findings:
-        if v.source == "custom-ruleset" and v.source_section and not v.guideline_excerpt:
-            chunks = get_section_chunks(v.source_section, document=v.source_document)
-            if chunks:
-                v.guideline_excerpt = "\n".join(c.page_content for c in chunks)[:600]
-
-
 def validate_oas(payload: OASInput) -> ValidateOASResult:
     spectral = run_spectral(payload.oas_content, payload.format)
-    attach_guideline_excerpts(spectral)
     notes = guideline_context(payload.oas_content)
 
     spectral_core = [v for v in spectral if v.source == "spectral-core"]
@@ -53,8 +41,7 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
         next_step = ("This validation report is the answer if the user only asked to validate — "
                      "present it grouped into three sections: Spectral lint findings "
                      "(source=spectral-core, generic OpenAPI best practices), Custom Ruleset "
-                     "findings (source=custom-ruleset, Org-specific mechanically-enforced rules, "
-                     "each carrying the guideline prose it enforces in guideline_excerpt), "
+                     "findings (source=custom-ruleset, Org-specific mechanically-enforced rules), "
                      "and Guideline notes (source=rag, prose guidance) — don't merge them into "
                      "one flat list. Only call fix_oas if the user separately asks you to fix or "
                      "correct the spec; if they do, call it with this same oas_content, apply "
@@ -64,9 +51,7 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
                      "source: spectral-core vs custom-ruleset) and the guideline notes (source=rag) "
                      "to the user. Only pursue a fix if the user asks for one.")
     else:
-        next_step = ("Spec is fully compliant. Review the guideline notes (source=rag) for any "
-                     "manual judgment calls; no fix needed. guidelines_toc lists every guideline "
-                     "section — call get_guideline_section if the user asks about one in depth.")
+        next_step = "Spec is fully compliant. Review the guideline notes (source=rag) for any manual judgment calls; no fix needed."
 
     logger.info(
         "validate_oas: api_name=%s oas_len=%d -> is_valid=%s spectral_core=%d org_ruleset=%d "
@@ -82,5 +67,4 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
                 f"finding(s) ({len(errors)} error(s) total); {len(notes)} guideline note(s) "
                 f"from the knowledge base.",
         next_step=next_step,
-        guidelines_toc=build_guidelines_toc(),
     )
