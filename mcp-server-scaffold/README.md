@@ -50,28 +50,21 @@ catalogue to keep in sync.
 
 **"Validate my OAS"** — one call, terminal. `validate_oas` reports; the
 agent presents the findings and stops. It never fixes unless the user
-separately asks. Malformed input is still a report: parser/structure
-errors come back as the blocking findings, with guideline notes attached
-as anticipatory context retrieved from the raw text.
+separately asks.
 
 **"Fix my OAS"** — the canonical sequence, in this order:
 
 ```
 1. validate_oas(original)   — diagnose; show the user what's broken
-2. fix_oas(original)        — get the plan (re-validates internally as a
-                              stateless safety net; never fixes blind)
+2. fix_oas(original)        — get the plan (runs the same checks itself,
+                              statelessly; never fixes blind)
 3. agent edits the spec     — its own LLM; zero server involvement
 4. validate_oas(edited)     — confirm the findings are actually resolved
-     └─ still failing? edit again — bounded: after a couple of rounds,
-        report the remaining findings instead of looping
 ```
 
 Diagnosis always precedes treatment; the final validation is confirmation,
-not diagnosis. For malformed input there's a known two-stage effect: rule
-findings are hidden behind syntax errors, so after the syntax is fixed the
-next validation may surface brand-new findings — the loop handles this.
-Only `validate_oas` can pronounce a spec valid; `fix_oas` has no
-`is_valid` field and no rewritten-spec output, by design.
+not diagnosis. Only `validate_oas` can pronounce a spec valid; `fix_oas`
+has no `is_valid` field and no rewritten-spec output, by design.
 
 ## Self-guiding tools: no reliance on a client-side system prompt
 
@@ -183,53 +176,28 @@ This is how `validate_oas`/`fix_oas` findings (across all three sources)
 and both search tools' hits can be cited back to a specific document (and
 section, where applicable) rather than presented as unsourced text.
 
-### How guideline retrieval targets the spec
+### Pulling actual section text: excerpts, TOC, and get_guideline_section
 
-`guideline_context()` (`app/tools/validate_oas.py`) derives its retrieval
-queries from the **parsed spec's actual characteristics** — `derive_facts()`
-walks the document and emits one natural-language fact per observed trait
-("POST endpoints creating resources and idempotency requirements", "uses
-skip/take pagination", "no security requirements declared", ...), runs one
-small retrieval per fact, then merges/dedupes and caps the result. Every
-returned note is present because of something real in THIS spec, not
-because it happened to rank near a blob of YAML. For **malformed** input
-(no parse tree to walk) it falls back to a single raw-text query over
-`oas_content[:600]` — degraded but still useful, and `next_step` labels
-the notes as anticipatory context rather than confirmed findings.
-
-Additionally, every `custom-ruleset` finding carries the actual guideline
-prose of the section it enforces (`guideline_excerpt`), fetched by exact
-section-name match against the finding's `x-guideline-section` — no
-similarity search involved. And the whole corpus is always navigable:
-every validate/fix response includes `guidelines_toc` (each document's
-section list, built from chunk metadata with no embedding call), and the
+Every `custom-ruleset` finding carries the actual guideline prose of the
+section it enforces (`guideline_excerpt`), fetched by exact section-name
+match against the finding's `x-guideline-section` — no similarity search
+involved. And the whole corpus is always navigable: every validate/fix
+response includes `guidelines_toc` (each document's section list, built
+from chunk metadata with no embedding call), and the
 `get_guideline_section` tool returns any named section in full — so the
 calling agent is never limited to whatever top-k retrieval surfaced.
 
-The Spectral findings' own `rule_explanation`/`suggested_fix` are
-unrelated to any of this — those come from a deterministic dict lookup by
-`rule_id` against `resources/api-ruleset.yaml`'s `description`/`x-fix`
-fields (`app/integrations/spectral.py`), not from vector retrieval.
-
-### Malformed input: the parse ladder
-
-`parse_oas()` tries the declared format first, then the other (agents get
-`format` wrong; JSON is a YAML subset anyway). Three outcomes:
-
-1. **Doesn't parse at all** → a synthetic `parse-error` finding (severity
-   error) carrying the parser's own message. Spectral still runs when it
-   can — but Spectral itself sometimes crashes on malformed input (exit 2,
-   internal error) instead of emitting `parser` findings, so the crash is
-   tolerated for input that already failed our parse and the synthetic
-   finding carries the diagnosis instead. Guideline retrieval falls back
-   to raw-text mode as described above.
-2. **Parses but isn't an OAS** (no `openapi`/`swagger` key) → a synthetic
-   `oas-structure` finding — clearer than twenty confusing lint results on
-   a random config file.
-3. **Valid OAS** → full pipeline.
-
-A Spectral failure on a document that parses fine is a real server-side
-problem and still raises, loudly.
+**Retrieval limitation to know about**: `guideline_context()`
+(`app/tools/validate_oas.py`) does **one blanket retrieval per call**, not
+retrieval per Spectral finding — it embeds `"API design rules relevant
+to: " + oas_content[:600]` once and returns the top-k nearest guideline
+chunks for the spec as a whole. It is not "for finding X, fetch the
+guideline section about X" (except for custom-ruleset findings, whose
+`guideline_excerpt` IS exactly that, via section match rather than
+retrieval). The Spectral findings' own `rule_explanation`/`suggested_fix`
+are unrelated to vector retrieval too — those come from a deterministic
+dict lookup by `rule_id` against `resources/api-ruleset.yaml`'s
+`description`/`x-fix` fields (`app/integrations/spectral.py`).
 
 ### Logging: every tool call is logged twice
 

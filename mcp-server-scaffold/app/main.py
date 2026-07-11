@@ -59,17 +59,16 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
 
     Runs the Spectral lint (findings enriched with rule explanations and
     suggested fixes from the ruleset lookup) plus a Guidelines Index
-    retrieval driven by the spec's actual characteristics. Handles
-    malformed input: parser errors come back as the blocking findings,
-    with guideline notes as anticipatory context. Read-only — never
+    retrieval for prose rules the linter can't check. Read-only — never
     modifies oas_content. Pass the spec exactly as given/retrieved, never
     reformatted. If the user only asked you to validate, this report IS the
     final answer — do not proactively call fix_oas unless the user asks you
     to fix or correct the spec. The response's next_step field says exactly
     what to do with this result. Findings carry source_document/
-    source_section citations — cite these when quoting a guideline; the
-    guidelines_toc field lists every section (fetch any in full with
-    get_guideline_section).
+    source_section citations (custom-ruleset ones also carry the guideline
+    prose they enforce in guideline_excerpt) — cite these when quoting a
+    guideline; the guidelines_toc field lists every section (fetch any in
+    full with get_guideline_section).
     """
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -96,9 +95,7 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     with the guideline prose it enforces in guideline_excerpt — apply as
     stated), needs_judgment (a violation exists but the ruleset has no
     one-line fix — use rule_explanation to decide), and guideline_notes
-    (prose context with citations). On malformed input: fix syntax AND
-    apply guideline notes in one edit, then validate — expect new findings
-    once it parses.
+    (prose context with citations).
     """
     logger.info("tools/call fix_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
