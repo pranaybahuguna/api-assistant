@@ -69,7 +69,11 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     the user only asked you to validate, this report IS the final answer —
     do not proactively call fix_oas unless the user asks you to fix or
     correct the spec. The response's next_step field gives the exact
-    section-by-section format to present the result in — follow it.
+    section-by-section format to present the result in — follow it. Takes
+    ONLY the three parameters below — there is no filter for which check
+    to run; "source" (spectral-core/custom-ruleset/rag) is a field INSIDE
+    each item of the response's violations list, classifying where that
+    finding came from — it is not something you pass in.
 
     Args:
         oas_content: The raw OpenAPI spec, exactly as given by the user or returned by search_api_registry — never reformatted or paraphrased before passing it in.
@@ -94,7 +98,9 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     concrete suggested_fix from the ruleset — apply as stated),
     needs_judgment (a violation exists but the ruleset has no one-line fix
     — use rule_explanation to decide), and guideline_notes (prose context,
-    each citing source_document/source_section it came from).
+    each citing source_document/source_section it came from). Takes ONLY
+    the three parameters below — there is no filter parameter; "source" is
+    a field INSIDE each returned item, not something you pass in.
 
     Args:
         oas_content: The raw OpenAPI spec, exactly as given by the user or returned by search_api_registry — never reformatted or paraphrased before passing it in.
