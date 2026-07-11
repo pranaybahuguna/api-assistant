@@ -24,8 +24,11 @@ class GuidelineViolation(BaseModel):
     source: Literal["spectral-core", "custom-ruleset", "rag"] = "spectral-core"
     rule_explanation: str | None = None  # enriched from the ruleset lookup dict
     suggested_fix: str | None = None
-    # Citation — only set for source="rag" entries, since spectral-core/
-    # custom-ruleset ones come from the ruleset file/rule_id, not a retrieved chunk.
+    # Citation — always None for source="spectral-core" (generic OpenAPI
+    # rules aren't tied to any Org doc). Set for "rag" from the retrieved
+    # chunk's metadata, and for "custom-ruleset" from that rule's
+    # x-guideline-section in api-ruleset.yaml — both point at the same
+    # underlying doc/section-naming convention either way.
     source_document: str | None = None   # e.g. "API-Design-Guidelines.docx"
     source_section: str | None = None    # e.g. "6. Authentication and Authorization"
 

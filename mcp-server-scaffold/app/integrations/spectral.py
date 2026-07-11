@@ -4,9 +4,10 @@ plain file on the server — deliberately NOT vectorized):
 
 1. run_spectral()   — shells out to the Spectral CLI to lint an OAS.
 2. get_rule_lookup() — parses the ruleset once at startup into a
-   {rule_id: {description, severity, fix}} dict. When a finding comes back
-   from Spectral it already carries the exact rule id, so enriching it is
-   an O(1) dictionary lookup — no semantic search needed or wanted.
+   {rule_id: {description, severity, fix, guideline_section}} dict. When a
+   finding comes back from Spectral it already carries the exact rule id,
+   so enriching it is an O(1) dictionary lookup — no semantic search
+   needed or wanted.
 """
 import json
 import logging
@@ -24,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 _SEVERITY_MAP = {0: "error", 1: "warning", 2: "info", 3: "info"}
 
+# Every custom-ruleset rule mechanically enforces one section of this doc —
+# see resources/api-ruleset.yaml's own module docstring.
+_GUIDELINES_DOC = "API-Design-Guidelines.docx"
+
 
 class SpectralError(RuntimeError):
     """Spectral could not be run or its output could not be parsed —
@@ -32,7 +37,8 @@ class SpectralError(RuntimeError):
 
 @lru_cache
 def get_rule_lookup() -> dict[str, dict]:
-    """Parse the ruleset file into rule_id -> {description, severity, fix}."""
+    """Parse the ruleset file into rule_id -> {description, severity, fix,
+    guideline_section}."""
     path = Path(os.environ.get("SPECTRAL_RULESET_PATH", "./resources/api-ruleset.yaml"))
     if not path.exists():
         return {}
@@ -46,21 +52,30 @@ def get_rule_lookup() -> dict[str, dict]:
             "severity": rule.get("severity", "warning"),
             # convention: put remediation guidance in a custom x-fix field
             "fix": rule.get("x-fix", ""),
+            # convention: which guidelines doc section this rule mechanically
+            # enforces, e.g. "4. Idempotency" — same section-name format
+            # RAG-retrieved guideline chunks use, so citations are consistent
+            # across custom-ruleset and rag findings.
+            "guideline_section": rule.get("x-guideline-section", ""),
         }
     return lookup
 
 
 def enrich(violation: GuidelineViolation) -> GuidelineViolation:
-    """Attach the ruleset's own explanation/fix text to a Spectral finding,
-    and classify it: a rule_id present in api-ruleset.yaml's own
-    `rules:` section is a Org-specific rule ("custom-ruleset"); anything else
-    came from Spectral's built-in `spectral:oas` ruleset ("spectral-core")
-    — the finding's rule_id is the only signal needed, no guessing."""
+    """Attach the ruleset's own explanation/fix/citation to a Spectral
+    finding, and classify it: a rule_id present in api-ruleset.yaml's
+    own `rules:` section is a Org-specific rule ("custom-ruleset"); anything
+    else came from Spectral's built-in `spectral:oas` ruleset
+    ("spectral-core") — the finding's rule_id is the only signal needed,
+    no guessing."""
     rule = get_rule_lookup().get(violation.rule_id)
     if rule:
         violation.source = "custom-ruleset"
         violation.rule_explanation = rule["description"]
         violation.suggested_fix = rule["fix"] or violation.suggested_fix
+        if rule["guideline_section"]:
+            violation.source_document = _GUIDELINES_DOC
+            violation.source_section = rule["guideline_section"]
     else:
         violation.source = "spectral-core"
     return violation

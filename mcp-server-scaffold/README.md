@@ -132,24 +132,28 @@ filter (exact-match on FAISS metadata) so an agent can first call
 `search_api_referential` to find which API it needs, then narrow
 `search_api_registry` to that API's endpoints only.
 
-### Citations: every retrieved chunk says where it came from
+### Citations: every finding/hit says where it came from
 
-Every chunk's origin filename (and, for guideline chunks, the docx section
-heading) is captured once at ingestion time (`metadata["source"]` /
-`metadata["section"]` in `app/ingestion/loaders.py`) and was always sitting
-in the FAISS metadata — it just wasn't surfaced in responses. Now it is:
-
-- `GuidelineViolation.source_document` / `.source_section` — set for
-  `source="rag"` entries (unset for `spectral-core`/`custom-ruleset`, since
-  those come from the ruleset file/rule_id, not a retrieved chunk).
-  `source_section` is `null` for guideline chunks that came from a table
-  row, since a table row isn't scoped to one heading the way prose is.
+- `GuidelineViolation.source_document` / `.source_section`:
+  - **`source="rag"`** — from the retrieved chunk's own metadata
+    (`metadata["source"]` / `metadata["section"]`, captured once at
+    ingestion time in `app/ingestion/loaders.py`). `source_section` is
+    `null` for guideline chunks that came from a table row, since a table
+    row isn't scoped to one heading the way prose is.
+  - **`source="custom-ruleset"`** — from that rule's own
+    `x-guideline-section` field in `resources/api-ruleset.yaml` (e.g.
+    `post-idempotency-key-header` → `"4. Idempotency"`), set in
+    `app/integrations/spectral.py`'s `enrich()`. Every Org rule
+    mechanically enforces exactly one guideline section, and the ruleset
+    file says which one explicitly — no parsing or guessing.
+  - **`source="spectral-core"`** — always `null`. Generic OpenAPI
+    best-practice rules aren't tied to any Org document.
 - `RegistryHit.source_document` / `ReferentialHit.source_document` — the
   OAS/inventory filename the hit came from.
 
-This is how `validate_oas`/`fix_oas`'s guideline notes and both search
-tools' hits can be cited back to a specific document (and section, where
-applicable) rather than presented as unsourced text.
+This is how `validate_oas`/`fix_oas` findings (across all three sources)
+and both search tools' hits can be cited back to a specific document (and
+section, where applicable) rather than presented as unsourced text.
 
 **Important limitation to know about**: `guideline_context()`
 (`app/tools/validate_oas.py`) does **one blanket retrieval per call**, not
