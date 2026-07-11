@@ -28,11 +28,14 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
     errors = [v for v in spectral if v.severity == "error"]
 
     if errors:
-        next_step = ("Call fix_oas with this same oas_content to get a fix plan, apply the "
-                     "fixes yourself, then call validate_oas again on your edited spec.")
+        next_step = ("This validation report is the answer if the user only asked to validate — "
+                     "present these findings as-is. Only call fix_oas if the user separately "
+                     "asks you to fix or correct the spec; if they do, call it with this same "
+                     "oas_content, apply the fixes yourself, then call validate_oas again.")
     elif spectral:
-        next_step = ("No blocking errors, but there are warnings above — review them and the "
-                     "guideline notes (source=rag), then decide whether to fix or accept them.")
+        next_step = ("No blocking errors, but there are warnings above — report them and the "
+                     "guideline notes (source=rag) to the user. Only pursue a fix if the user "
+                     "asks for one.")
     else:
         next_step = "Spec is fully compliant. Review the guideline notes (source=rag) for any manual judgment calls; no fix needed."
 

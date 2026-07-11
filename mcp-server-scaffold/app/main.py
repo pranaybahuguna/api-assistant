@@ -48,16 +48,20 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     suggested fixes from the ruleset lookup) plus a Guidelines Index
     retrieval for prose rules the linter can't check. Read-only — never
     modifies oas_content. Pass the spec exactly as given/retrieved, never
-    reformatted. If is_valid is false, call fix_oas next; the response's
-    next_step field always says exactly what to do with this result.
+    reformatted. If the user only asked you to validate, this report IS the
+    final answer — do not proactively call fix_oas unless the user asks you
+    to fix or correct the spec. The response's next_step field says exactly
+    what to do with this result.
     """
     return t_validate.validate_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
 
 @mcp.tool
 def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None) -> FixOASResult:
-    """Get a fix plan for a non-compliant OpenAPI spec. Call this after
-    validate_oas reports is_valid=false.
+    """Get a fix plan for a non-compliant OpenAPI spec. Only call this if
+    the user asks you to fix/correct the spec — validate_oas reporting
+    is_valid=false is a precondition, not by itself a reason to call this;
+    if the user only asked to validate, stop at the validate_oas report.
 
     Does NOT rewrite the spec — YOU (the calling agent) must edit
     oas_content yourself using this plan, then call validate_oas again on
