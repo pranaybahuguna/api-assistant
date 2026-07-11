@@ -1,14 +1,11 @@
 """
 FAISS vector store, one index per folder under ./vector_data/<index>/.
-FAISS is in-memory until save_faiss() is called — the ingestion pipeline
-calls it after every add_documents.
 
-The cache is keyed on the index file's mtime, not just its presence: a
-long-running server process (started before ingestion, or before a later
-re-ingestion) must pick up a file that changed on disk since it was last
-loaded, without needing a restart. A plain "cache forever once loaded"
-dict would silently keep serving a stale (or empty bootstrap) index
-forever in that case.
+No in-memory cache — every call loads straight from disk. A cache means
+having to answer "when is it stale," and that's not worth the complexity
+for a demo-sized index: FAISS.load_local() is fast, and always reading
+from disk means the server always sees the latest ingested data, in any
+process, with no restart or invalidation logic required.
 """
 import os
 from enum import Enum
@@ -26,42 +23,21 @@ class Index(str, Enum):
     REFERENTIAL = "referential"
 
 
-_faiss_cache: dict[Index, tuple[float | None, FAISS]] = {}  # index -> (mtime seen, store)
-
-
 def _faiss_path(index: Index) -> Path:
     return Path(os.environ.get("FAISS_DIR", "./vector_data")) / index.value
 
 
-def _index_file(index: Index) -> Path:
-    return _faiss_path(index) / "index.faiss"
-
-
 def get_vector_store(index: Index) -> VectorStore:
-    index_file = _index_file(index)
-    current_mtime = index_file.stat().st_mtime if index_file.exists() else None
-
-    cached = _faiss_cache.get(index)
-    if cached is not None and cached[0] == current_mtime:
-        return cached[1]
-
     path = _faiss_path(index)
     embeddings = get_embeddings()
     if path.exists():
-        store = FAISS.load_local(str(path), embeddings, allow_dangerous_deserialization=True)
-    else:
-        # Bootstrap an empty index; real content arrives via the ingestion pipeline.
-        store = FAISS.from_texts(["__init__"], embeddings, metadatas=[{"bootstrap": True}])
-    _faiss_cache[index] = (current_mtime, store)
-    return store
+        return FAISS.load_local(str(path), embeddings, allow_dangerous_deserialization=True)
+    # Bootstrap an empty index; real content arrives via the ingestion pipeline.
+    return FAISS.from_texts(["__init__"], embeddings, metadatas=[{"bootstrap": True}])
 
 
-def save_faiss(index: Index) -> None:
+def save_faiss(index: Index, store: VectorStore) -> None:
     """Persist a FAISS index to disk. Call after ingestion."""
-    cached = _faiss_cache.get(index)
-    if cached is not None:
-        store = cached[1]
-        path = _faiss_path(index)
-        path.mkdir(parents=True, exist_ok=True)
-        store.save_local(str(path))
-        _faiss_cache[index] = (_index_file(index).stat().st_mtime, store)
+    path = _faiss_path(index)
+    path.mkdir(parents=True, exist_ok=True)
+    store.save_local(str(path))

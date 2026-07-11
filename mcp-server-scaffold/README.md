@@ -231,12 +231,13 @@ EMBEDDING_CERT_PATH=./resources/combined_trust_store.pem   # optional
 
 `app/rag/vector_store.py`'s `get_vector_store(index)` returns a file-based
 FAISS store under `./vector_data/<index>/` — nothing else to install or
-run. FAISS is in-memory until `save_faiss(index)` is called explicitly
-(the ingestion pipeline does this after every `add_documents`); a
-process-local cache (`_faiss_cache`) avoids re-loading from disk on every
-call within the same process. If no index file exists yet, a bootstrap
-placeholder document is created so `similarity_search` never errors on an
-empty index — `retrieve_with_scores` filters this placeholder back out.
+run. Every call loads straight from disk, no in-memory caching: simpler,
+and it means any process always sees the latest ingested data with no
+restart or cache-invalidation logic needed. `save_faiss(index, store)`
+persists a store explicitly (the ingestion pipeline does this after every
+`add_documents`). If no index file exists yet, a bootstrap placeholder
+document is created so `similarity_search` never errors on an empty index
+— `retrieve_with_scores` filters this placeholder back out.
 
 ## Spectral: a file, not an index
 

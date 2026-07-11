@@ -103,8 +103,9 @@ def run(source: str, path_args: list[str] | None, index_name: str) -> None:
     docs = [Document(page_content=c.text, metadata=c.metadata) for c in chunks]
 
     index = _INDEXES[index_name]
-    get_vector_store(index).add_documents(docs)
-    save_faiss(index)  # persist to ./vector_data/<index>/ (no-op for pgvector)
+    store = get_vector_store(index)
+    store.add_documents(docs)
+    save_faiss(index, store)  # persist to ./vector_data/<index>/
 
     file_list = ", ".join(p.name for p in paths)
     print(f"Ingested {len(docs)} chunk(s) from {len(paths)} file(s) [{file_list}] into '{index_name}'.")
