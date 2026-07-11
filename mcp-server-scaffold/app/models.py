@@ -18,6 +18,10 @@ class GuidelineViolation(BaseModel):
     source: Literal["spectral", "rag"] = "spectral"
     rule_explanation: str | None = None  # enriched from the ruleset lookup dict
     suggested_fix: str | None = None
+    # Citation — only set for source="rag" entries, since "spectral" ones
+    # come from the ruleset file/rule_id, not a retrieved chunk.
+    source_document: str | None = None   # e.g. "API-Design-Guidelines.docx"
+    source_section: str | None = None    # e.g. "6. Authentication and Authorization"
 
 
 class ValidateOASResult(BaseModel):
@@ -50,6 +54,7 @@ class RegistryHit(BaseModel):
     chunk_type: Literal["oas_operation", "oas_summary"]
     content: str
     score: float
+    source_document: str | None = None  # e.g. "payments-api.yaml" — citation
 
 
 class SearchRegistryResult(BaseModel):
@@ -71,6 +76,7 @@ class ReferentialHit(BaseModel):
     description: str
     url: str | None = None
     score: float
+    source_document: str | None = None  # e.g. "api-referential.yaml" — citation
 
 
 class SearchReferentialResult(BaseModel):

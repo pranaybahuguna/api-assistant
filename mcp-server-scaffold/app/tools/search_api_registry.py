@@ -20,6 +20,7 @@ def search_api_registry(payload: SearchRegistryInput) -> SearchRegistryResult:
             chunk_type=d.metadata.get("type", "oas_operation"),
             content=d.page_content,
             score=float(score),
+            source_document=d.metadata.get("source"),
         )
         for d, score in results
     ]

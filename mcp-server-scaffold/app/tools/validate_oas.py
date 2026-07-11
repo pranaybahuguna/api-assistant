@@ -9,7 +9,8 @@ from app.rag.retriever import retrieve_guidelines
 
 
 def guideline_context(oas_content: str, k: int = 4) -> list[GuidelineViolation]:
-    """Surface guideline chunks relevant to this OAS as informational notes."""
+    """Surface guideline chunks relevant to this OAS as informational notes,
+    each citing the doc/section it came from."""
     docs = retrieve_guidelines(f"API design rules relevant to: {oas_content[:600]}", k=k)
     return [
         GuidelineViolation(
@@ -17,6 +18,8 @@ def guideline_context(oas_content: str, k: int = 4) -> list[GuidelineViolation]:
             message=d.page_content[:400],
             severity="info",
             source="rag",
+            source_document=d.metadata.get("source"),
+            source_section=d.metadata.get("section"),
         )
         for d in docs
     ]

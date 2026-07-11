@@ -118,6 +118,36 @@ filter (exact-match on FAISS metadata) so an agent can first call
 `search_api_referential` to find which API it needs, then narrow
 `search_api_registry` to that API's endpoints only.
 
+### Citations: every retrieved chunk says where it came from
+
+Every chunk's origin filename (and, for guideline chunks, the docx section
+heading) is captured once at ingestion time (`metadata["source"]` /
+`metadata["section"]` in `app/ingestion/loaders.py`) and was always sitting
+in the FAISS metadata — it just wasn't surfaced in responses. Now it is:
+
+- `GuidelineViolation.source_document` / `.source_section` — set for
+  `source="rag"` entries (unset for `source="spectral"`, since those come
+  from the ruleset file/rule_id, not a retrieved chunk). `source_section`
+  is `null` for guideline chunks that came from a table row, since a table
+  row isn't scoped to one heading the way prose is.
+- `RegistryHit.source_document` / `ReferentialHit.source_document` — the
+  OAS/inventory filename the hit came from.
+
+This is how `validate_oas`/`fix_oas`'s guideline notes and both search
+tools' hits can be cited back to a specific document (and section, where
+applicable) rather than presented as unsourced text.
+
+**Important limitation to know about**: `guideline_context()`
+(`app/tools/validate_oas.py`) does **one blanket retrieval per call**, not
+retrieval per Spectral finding — it embeds `"API design rules relevant
+to: " + oas_content[:600]` once and returns the top-k nearest guideline
+chunks for the spec as a whole. It is not "for finding X, fetch the
+guideline section about X." The Spectral findings' own
+`rule_explanation`/`suggested_fix` are unrelated to this — those come from
+a deterministic dict lookup by `rule_id` against
+`resources/api-ruleset.yaml`'s `description`/`x-fix` fields
+(`app/integrations/spectral.py`), not from vector retrieval at all.
+
 ## RAG pipeline: three indexes, linked by api_id
 
 Three separate FAISS stores under `./vector_data/<index>/`, each backing

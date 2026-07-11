@@ -51,7 +51,8 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     reformatted. If the user only asked you to validate, this report IS the
     final answer — do not proactively call fix_oas unless the user asks you
     to fix or correct the spec. The response's next_step field says exactly
-    what to do with this result.
+    what to do with this result. Every source="rag" violation carries
+    source_document/source_section — cite these when quoting a guideline.
     """
     return t_validate.validate_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
@@ -68,7 +69,8 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     your edited version to confirm. Returns mechanical_fixes (each has a
     concrete suggested_fix from the ruleset — apply as stated),
     needs_judgment (a violation exists but the ruleset has no one-line fix
-    — use rule_explanation to decide), and guideline_notes (prose context).
+    — use rule_explanation to decide), and guideline_notes (prose context,
+    each citing source_document/source_section it came from).
     """
     return t_fix.fix_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
@@ -82,7 +84,8 @@ def search_api_registry(query: str, top_k: int = 5, api_id: str | None = None) -
     Pass api_id (from search_api_referential) to restrict results to one
     API — always do this if you already have an api_id, since an unfiltered
     search can return endpoints from unrelated APIs. If you don't know the
-    api_id yet, call search_api_referential first instead of guessing.
+    api_id yet, call search_api_referential first instead of guessing. Each
+    hit carries source_document (the OAS filename it came from) — cite it.
     """
     return t_registry.search_api_registry(SearchRegistryInput(query=query, top_k=top_k, api_id=api_id))
 
@@ -97,7 +100,8 @@ def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResul
     Searches the API Referential inventory and returns candidates with
     their api_id — pass that api_id into search_api_registry next to see
     the chosen API's actual endpoints. If no candidate fits, say so
-    plainly instead of proceeding with a guess.
+    plainly instead of proceeding with a guess. Each hit carries
+    source_document (the inventory filename it came from) — cite it.
     """
     return t_referential.search_api_referential(SearchReferentialInput(query=query, top_k=top_k))
 

@@ -16,6 +16,7 @@ def search_api_referential(payload: SearchReferentialInput) -> SearchReferential
             description=d.page_content,
             url=d.metadata.get("url"),
             score=float(score),
+            source_document=d.metadata.get("source"),
         )
         for d, score in results
     ]
