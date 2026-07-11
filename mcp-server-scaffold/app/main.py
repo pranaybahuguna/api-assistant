@@ -61,9 +61,13 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     modifies oas_content. Pass the spec exactly as given/retrieved, never
     reformatted. If the user only asked you to validate, this report IS the
     final answer — do not proactively call fix_oas unless the user asks you
-    to fix or correct the spec. The response's next_step field says exactly
-    what to do with this result. Every source="rag" violation carries
-    source_document/source_section — cite these when quoting a guideline.
+    to fix or correct the spec. Present the result as exactly four
+    sections: (1) Spectral Lint Errors & Warnings (source=spectral-core),
+    (2) Custom Ruleset Recommendations & Warnings (source=custom-ruleset, with
+    rule_explanation/suggested_fix), (3) Org API Guideline Recommendations
+    (source=rag, cited via source_document/source_section), (4) Summary &
+    Next Steps. The response's next_step field restates this exactly —
+    follow it.
     """
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))

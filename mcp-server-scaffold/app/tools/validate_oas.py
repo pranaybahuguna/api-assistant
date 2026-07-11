@@ -37,21 +37,28 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
     org_ruleset = [v for v in spectral if v.source == "custom-ruleset"]
     errors = [v for v in spectral if v.severity == "error"]
 
+    _FORMAT = ("Present the report to the user as exactly these four sections, in this order "
+               "— don't merge them into one flat list:\n"
+               "1. Spectral Lint Errors & Warnings — violations with source=spectral-core "
+               "(generic OpenAPI best practices).\n"
+               "2. Custom Ruleset Recommendations & Warnings — violations with source=custom-ruleset "
+               "(Org-specific mechanically-enforced rules), each with its rule_explanation and "
+               "suggested_fix.\n"
+               "3. Org API Guideline Recommendations — notes with source=rag (prose guidance "
+               "retrieved from the Guidelines Index), cited by source_document/source_section.\n"
+               "4. Summary & Next Steps — a short summary of overall compliance status and what "
+               "the user should do next.")
+
     if errors:
-        next_step = ("This validation report is the answer if the user only asked to validate — "
-                     "present it grouped into three sections: Spectral lint findings "
-                     "(source=spectral-core, generic OpenAPI best practices), Custom Ruleset "
-                     "findings (source=custom-ruleset, Org-specific mechanically-enforced rules), "
-                     "and Guideline notes (source=rag, prose guidance) — don't merge them into "
-                     "one flat list. Only call fix_oas if the user separately asks you to fix or "
+        next_step = (_FORMAT + " Only call fix_oas if the user separately asks you to fix or "
                      "correct the spec; if they do, call it with this same oas_content, apply "
                      "the fixes yourself, then call validate_oas again.")
     elif spectral:
-        next_step = ("No blocking errors, but there are warnings above — report them (grouped by "
-                     "source: spectral-core vs custom-ruleset) and the guideline notes (source=rag) "
-                     "to the user. Only pursue a fix if the user asks for one.")
+        next_step = (_FORMAT + " No blocking errors, but section 1/2 above have warnings — "
+                     "include them. Only pursue a fix if the user asks for one.")
     else:
-        next_step = "Spec is fully compliant. Review the guideline notes (source=rag) for any manual judgment calls; no fix needed."
+        next_step = (_FORMAT + " Sections 1 and 2 will be empty — spec is fully compliant. "
+                     "Still review section 3 for manual judgment calls; no fix needed.")
 
     logger.info(
         "validate_oas: api_name=%s oas_len=%d -> is_valid=%s spectral_core=%d org_ruleset=%d "
