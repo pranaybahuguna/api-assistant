@@ -57,16 +57,8 @@ regardless of its own prompt:
    what to pass, and what to do with the result (e.g.
    `search_api_referential`: "Call this FIRST... do not guess or invent an
    API"; `fix_oas`: "Call this after validate_oas reports
-   is_valid=false... YOU must edit oas_content yourself"). Each also has a
-   Google-style `Args:` section — FastMCP parses these into the JSON
-   schema's per-parameter `description` fields (see
-   `fastmcp/utilities/docstring_parsing.py`), so the schema a client
-   actually inspects before calling carries real guidance on what each
-   argument means, not just its name and type. `tools/list` surfaces all
-   of this to any client before it ever calls a tool. Keep the top-level
-   description focused on when/why to call and what to do with the
-   result; put exact response-formatting instructions in `next_step`
-   (computed per-call) rather than duplicating them in the docstring.
+   is_valid=false... YOU must edit oas_content yourself"). `tools/list`
+   surfaces these to any client before it ever calls a tool.
 2. **A `next_step` field on every response** (`app/models.py`) — computed
    from the actual result, not static text, so it stays correct call to
    call: `validate_oas` says "call fix_oas" only when there are errors;
