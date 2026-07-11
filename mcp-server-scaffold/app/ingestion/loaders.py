@@ -3,16 +3,16 @@ Format-aware loaders. Each returns RawUnits — the smallest structural piece
 worth treating separately (a headed section, a table row, an OAS operation,
 a spec summary, an inventory entry).
 
-OCR: images embedded in .docx are extracted and read via the same
-OpenAI-compatible chat model used for fix_oas (a vision-capable call, not a
-local OCR binary) — the text is APPENDED to the section the image sits in
-(an image illustrates the rule around it, so it must not float as its own
-chunk). If the vision call fails (model doesn't support images, network
-error, etc.), ingestion still works and just skips that image's text with
-a warning.
+OCR: images embedded in .docx are read via an OpenAI-compatible vision
+call (OCR_MODEL if set, otherwise CHAT_MODEL) — not a local OCR binary.
+The extracted text is APPENDED to the section the image sits in (an image
+illustrates the rule around it, so it must not float as its own chunk). If
+the vision call fails (model doesn't support images, network error, etc.),
+ingestion still works and just skips that image's text with a warning.
 """
 import base64
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -39,8 +39,9 @@ _OCR_PROMPT = (
 
 
 def _ocr_image(image_bytes: bytes, content_type: str = "image/png") -> str:
-    """Read embedded-image text via the internal LLM's vision input, not a
-    local OCR binary — same OpenAI-compatible chat model fix_oas uses."""
+    """Read embedded-image text via a vision-capable OpenAI-compatible call
+    — not a local OCR binary. Uses OCR_MODEL if set (a dedicated internal
+    OCR deployment), otherwise falls back to CHAT_MODEL."""
     try:
         from langchain_core.messages import HumanMessage
         from app.integrations.internal_llm import get_chat_model
@@ -50,7 +51,8 @@ def _ocr_image(image_bytes: bytes, content_type: str = "image/png") -> str:
             {"type": "text", "text": _OCR_PROMPT},
             {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{b64}"}},
         ])
-        response = get_chat_model().invoke([message])
+        model = get_chat_model(model=os.environ.get("OCR_MODEL"))
+        response = model.invoke([message])
         return (response.content or "").strip()
     except Exception:
         logger.warning("Vision OCR call failed; skipping this image's text", exc_info=True)

@@ -162,13 +162,23 @@ python -m app.ingestion.pipeline --source referential --index referential
 
 ### OCR: vision LLM, not a local binary
 
-Images embedded in ingested `.docx` files are read via the same
-OpenAI-compatible chat model `fix_oas` uses (a multimodal call — the image
-is base64-encoded into a `data:` URL and sent alongside a fixed OCR
-prompt), not a local `tesseract` install. One less system dependency, and
-no separate OCR pipeline to keep in sync with the LLM client config. If the
-vision call fails (model doesn't support images, network error), ingestion
-continues and just skips that image's text with a logged warning.
+Images embedded in ingested `.docx` files are read via an OpenAI-compatible
+vision call (`app/ingestion/loaders.py`'s `_ocr_image`) — the image is
+base64-encoded into a `data:` URL and sent alongside a fixed OCR prompt —
+not a local `tesseract` install. One less system dependency, and no
+separate OCR pipeline to keep in sync with the LLM client config. Uses
+`OCR_MODEL` if set (a dedicated internal vision/OCR deployment), otherwise
+falls back to `CHAT_MODEL` — same gateway either way, just a different
+model name on the same OpenAI-wire-format request. If the vision call
+fails (model doesn't support images, network error), ingestion continues
+and just skips that image's text with a logged warning, so a missing OCR
+model never blocks ingestion of the rest of the document.
+
+`API-Design-Guidelines.docx` ships with three embedded diagrams as a
+worked example — one per section (4. Idempotency, 6. Authentication and
+Authorization, 7. Rate Limiting) — each walked, OCR'd, and folded into its
+section's text during ingestion the same way any of your own docx images
+would be.
 
 ## Embeddings: custom REST gateway
 
@@ -246,7 +256,8 @@ settings object duplicating these across `.env` and Python.
 | `FAISS_DIR` | `./vector_data` | Where FAISS index files are saved |
 | `LLM_BASE_URL` | internal gateway URL | Chat model base URL (OpenAI-compatible) |
 | `LLM_API_KEY` | `changeme` | Bearer key for chat and for the embeddings gateway |
-| `CHAT_MODEL` | `internal-llm` | Model name used by `fix_oas` and image OCR |
+| `CHAT_MODEL` | `internal-llm` | Model name used by `fix_oas`, and by OCR if `OCR_MODEL` is unset |
+| `OCR_MODEL` | — | Optional dedicated vision model for docx image OCR; falls back to `CHAT_MODEL` |
 | `EMBEDDING_ENDPOINT_URL` | — | Required — the custom embeddings gateway URL |
 | `EMBEDDING_MODEL` | `text-embedding-3-large` | Model name sent to the embeddings gateway |
 | `EMBEDDING_CERT_PATH` | — | Optional custom CA bundle for the embeddings gateway |
