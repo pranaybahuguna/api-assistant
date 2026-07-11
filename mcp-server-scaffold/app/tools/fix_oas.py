@@ -6,9 +6,13 @@ tool only tells it what's wrong, and how to fix it where the ruleset
 defines a concrete suggested_fix. The only LLM-style calls this server
 makes are embeddings and OCR; spec rewriting is the client's job.
 """
+import logging
+
 from app.models import OASInput, FixOASResult
 from app.integrations.spectral import run_spectral
 from app.tools.validate_oas import guideline_context
+
+logger = logging.getLogger(__name__)
 
 
 def fix_oas(payload: OASInput) -> FixOASResult:
@@ -17,6 +21,11 @@ def fix_oas(payload: OASInput) -> FixOASResult:
 
     mechanical = [v for v in findings if v.suggested_fix]
     needs_judgment = [v for v in findings if not v.suggested_fix]
+
+    logger.info(
+        "fix_oas: api_name=%s oas_len=%d -> mechanical_fixes=%d needs_judgment=%d guideline_notes=%d",
+        payload.api_name, len(payload.oas_content), len(mechanical), len(needs_judgment), len(notes),
+    )
 
     if not findings:
         next_step = "No violations found — spec already complies. No changes needed."

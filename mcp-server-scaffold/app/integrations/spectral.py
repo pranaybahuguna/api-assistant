@@ -51,11 +51,18 @@ def get_rule_lookup() -> dict[str, dict]:
 
 
 def enrich(violation: GuidelineViolation) -> GuidelineViolation:
-    """Attach the ruleset's own explanation/fix text to a Spectral finding."""
+    """Attach the ruleset's own explanation/fix text to a Spectral finding,
+    and classify it: a rule_id present in api-ruleset.yaml's own
+    `rules:` section is a Org-specific rule ("custom-ruleset"); anything else
+    came from Spectral's built-in `spectral:oas` ruleset ("spectral-core")
+    — the finding's rule_id is the only signal needed, no guessing."""
     rule = get_rule_lookup().get(violation.rule_id)
     if rule:
+        violation.source = "custom-ruleset"
         violation.rule_explanation = rule["description"]
         violation.suggested_fix = rule["fix"] or violation.suggested_fix
+    else:
+        violation.source = "spectral-core"
     return violation
 
 
@@ -99,12 +106,13 @@ def run_spectral(oas_content: str, fmt: str = "yaml") -> list[GuidelineViolation
             raise SpectralError("Spectral returned output that could not be parsed as JSON") from e
 
         return [
+            # source is set by enrich() below, based on whether rule_id is
+            # in the Org ruleset — not worth guessing here first.
             enrich(GuidelineViolation(
                 rule_id=item.get("code", "unknown"),
                 message=item.get("message", ""),
                 path=".".join(str(p) for p in item.get("path", [])),
                 severity=_SEVERITY_MAP.get(item.get("severity", 1), "warning"),
-                source="spectral",
             ))
             for item in findings
         ]

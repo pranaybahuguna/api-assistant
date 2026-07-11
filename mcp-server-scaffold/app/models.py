@@ -15,11 +15,17 @@ class GuidelineViolation(BaseModel):
     message: str
     path: str = ""                       # location inside the OAS
     severity: Literal["error", "warning", "info"] = "warning"
-    source: Literal["spectral", "rag"] = "spectral"
+    # "spectral-core": generic OpenAPI best-practice rules from Spectral's
+    #   built-in `spectral:oas` ruleset (extends: in api-ruleset.yaml).
+    # "custom-ruleset": Org-specific rules defined in api-ruleset.yaml's
+    #   own `rules:` section (mechanically enforced, each has an x-fix).
+    # "rag": prose guidance retrieved from the Guidelines Index — not a
+    #   Spectral finding at all.
+    source: Literal["spectral-core", "custom-ruleset", "rag"] = "spectral-core"
     rule_explanation: str | None = None  # enriched from the ruleset lookup dict
     suggested_fix: str | None = None
-    # Citation — only set for source="rag" entries, since "spectral" ones
-    # come from the ruleset file/rule_id, not a retrieved chunk.
+    # Citation — only set for source="rag" entries, since spectral-core/
+    # custom-ruleset ones come from the ruleset file/rule_id, not a retrieved chunk.
     source_document: str | None = None   # e.g. "API-Design-Guidelines.docx"
     source_section: str | None = None    # e.g. "6. Authentication and Authorization"
 

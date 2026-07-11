@@ -3,9 +3,13 @@ search_api_registry — semantic search over endpoint/spec-summary chunks.
 Accepts an optional api_id filter (obtained from search_api_referential)
 to restrict results to one API — this is the api_id link in action.
 """
+import logging
+
 from app.models import SearchRegistryInput, SearchRegistryResult, RegistryHit
 from app.rag.retriever import retrieve_with_scores
 from app.rag.vector_store import Index
+
+logger = logging.getLogger(__name__)
 
 
 def search_api_registry(payload: SearchRegistryInput) -> SearchRegistryResult:
@@ -34,5 +38,10 @@ def search_api_registry(payload: SearchRegistryInput) -> SearchRegistryResult:
                       "right one, then re-run this search with that api_id for focused results.")
     else:
         next_step = "Use these endpoint(s) directly to answer the user's question."
+
+    logger.info(
+        "search_api_registry: query=%r api_id=%s top_k=%d -> %d hit(s) across %d API(s)",
+        payload.query, payload.api_id, payload.top_k, len(hits), len(distinct_apis),
+    )
 
     return SearchRegistryResult(hits=hits, summary=f"{len(hits)} matching chunk(s).", next_step=next_step)

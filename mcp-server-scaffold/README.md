@@ -76,25 +76,39 @@ a client-side prompt update alone won't reach a client you don't control.
 
 Both tools check a spec against exactly two sources of truth, nothing else
 (no cross-API duplicate detection, no registry lookups — the guidelines
-and ruleset are the only contract):
+and ruleset are the only contract). Every finding/note carries a `source`
+that splits into **three** categories, not two, so the calling agent can
+present them separately instead of as one flat list:
 
-1. **Spectral lint** (`app/integrations/spectral.py`) — runs the Spectral
-   CLI as a subprocess against `resources/api-ruleset.yaml`, a plain
-   YAML file consumed whole (deliberately **not** vectorized — rule
-   lookup by `rule_id` is an O(1) dict access, not semantic search). Every
-   finding Spectral returns is enriched with that rule's `description` and
-   `x-fix` remediation text from the same file. This is the only source
-   that affects `is_valid` in `validate_oas` — it's deterministic pass/fail.
-2. **Guidelines Index retrieval** (`app/rag/retriever.py` →
-   `retrieve_guidelines`) — a RAG lookup over the ingested
-   `API-Design-Guidelines.docx` for prose rules Spectral can't check
-   structurally (naming conventions, deprecation windows, etc.). Always
-   surfaced as `severity="info", source="rag"` — informational context,
-   never a pass/fail signal, since retrieval relevance isn't deterministic.
+1. **`source="spectral-core"`** — generic OpenAPI best-practice findings
+   from Spectral's built-in `spectral:oas` ruleset (things like
+   `oas3-api-servers`, `info-contact`, `operation-operationId` — nothing
+   Org-specific). No `suggested_fix`.
+2. **`source="custom-ruleset"`** — Org-specific rules defined in
+   `resources/api-ruleset.yaml`'s own `rules:` section (versioned
+   paths, idempotency headers, etc.) — a plain YAML file consumed whole by
+   the Spectral CLI (deliberately **not** vectorized — rule lookup by
+   `rule_id` is an O(1) dict access, not semantic search). Each has a
+   `rule_explanation` and, where the ruleset defines one, a concrete
+   `suggested_fix`.
+3. **`source="rag"`** — prose guidance retrieved from the Guidelines Index
+   (`app/rag/retriever.py` → `retrieve_guidelines`) for rules Spectral
+   can't check structurally (naming conventions, deprecation windows,
+   etc.). Always `severity="info"` — informational context, never a
+   pass/fail signal, since retrieval relevance isn't deterministic.
+
+The classification between 1 and 2 is a single signal: `app/integrations/
+spectral.py`'s `enrich()` checks whether a finding's `rule_id` is present
+in `api-ruleset.yaml`'s own rules — if so it's `custom-ruleset`, otherwise
+it's `spectral-core`. Both still come from the same `spectral lint`
+subprocess call; only the finding's *label* changes.
 
 `validate_oas` (`app/tools/validate_oas.py`) runs both and returns every
-finding/note in one list; only Spectral `error`-severity findings flip
-`is_valid` to `False`.
+finding/note in one list; only `error`-severity findings (regardless of
+whether they're `spectral-core` or `custom-ruleset`) flip `is_valid` to
+`False`. The tool's docstring and `next_step` field explicitly instruct
+the calling agent to present results grouped into the three categories
+above rather than merging them.
 
 `fix_oas` (`app/tools/fix_oas.py`) runs the same two checks and reshapes
 the Spectral findings into `mechanical_fixes` (the ruleset defines a
@@ -126,10 +140,10 @@ heading) is captured once at ingestion time (`metadata["source"]` /
 in the FAISS metadata — it just wasn't surfaced in responses. Now it is:
 
 - `GuidelineViolation.source_document` / `.source_section` — set for
-  `source="rag"` entries (unset for `source="spectral"`, since those come
-  from the ruleset file/rule_id, not a retrieved chunk). `source_section`
-  is `null` for guideline chunks that came from a table row, since a table
-  row isn't scoped to one heading the way prose is.
+  `source="rag"` entries (unset for `spectral-core`/`custom-ruleset`, since
+  those come from the ruleset file/rule_id, not a retrieved chunk).
+  `source_section` is `null` for guideline chunks that came from a table
+  row, since a table row isn't scoped to one heading the way prose is.
 - `RegistryHit.source_document` / `ReferentialHit.source_document` — the
   OAS/inventory filename the hit came from.
 
@@ -147,6 +161,25 @@ guideline section about X." The Spectral findings' own
 a deterministic dict lookup by `rule_id` against
 `resources/api-ruleset.yaml`'s `description`/`x-fix` fields
 (`app/integrations/spectral.py`), not from vector retrieval at all.
+
+### Logging: every tool call is logged twice
+
+`app/main.py` calls `logging.basicConfig(level=logging.INFO, ...)` at
+import time, so every `logger.info(...)` call anywhere in the app produces
+timestamped output on stdout/stderr — check wherever the server process is
+running (no separate log file or aggregation is set up; this is a POC, not
+a prod logging pipeline).
+
+Each of the four tools logs **twice** per call:
+1. **On arrival**, in `app/main.py`, before anything runs — the tool name
+   and raw arguments (`tools/call validate_oas: api_name=... oas_content=N
+   chars`). This fires even if the tool then raises an exception.
+2. **On completion**, inside `app/tools/*.py` — a summary of what was
+   found/returned (e.g. `validate_oas: ... -> is_valid=False
+   spectral_core=6 org_ruleset=3 guideline_notes=4 errors=2`).
+
+Between the two, you can tell what a call was asked to do and what it
+actually found without attaching a debugger.
 
 ## RAG pipeline: three indexes, linked by api_id
 

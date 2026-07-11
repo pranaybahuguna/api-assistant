@@ -2,9 +2,13 @@
 search_api_referential — discovery over the API inventory. Returns api_id
 so the agent can follow up with a filtered search_api_registry call.
 """
+import logging
+
 from app.models import SearchReferentialInput, SearchReferentialResult, ReferentialHit
 from app.rag.retriever import retrieve_with_scores
 from app.rag.vector_store import Index
+
+logger = logging.getLogger(__name__)
 
 
 def search_api_referential(payload: SearchReferentialInput) -> SearchReferentialResult:
@@ -27,5 +31,7 @@ def search_api_referential(payload: SearchReferentialInput) -> SearchReferential
                      f"that API's endpoints.")
     else:
         next_step = "No matching API found. Tell the user plainly — do not invent an API or a URL."
+
+    logger.info("search_api_referential: query=%r top_k=%d -> %d hit(s)", payload.query, payload.top_k, len(hits))
 
     return SearchReferentialResult(hits=hits, summary=f"{len(hits)} candidate API(s).", next_step=next_step)

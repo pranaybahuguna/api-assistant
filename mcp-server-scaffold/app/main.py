@@ -19,7 +19,15 @@ loop without any extra plumbing.
 Run:
     python -m app.main
     # or: fastmcp run app.main:mcp --transport streamable-http --port 8080
+
+Logging: each tool call is logged twice — once here, on arrival (tool name
++ raw arguments, before anything runs), and once inside app/tools/*.py, on
+completion (a summary of what was found/returned). Together that's enough
+to see what happened for every call without needing a debugger — check
+stdout/stderr wherever the server process is running.
 """
+import logging
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -34,6 +42,9 @@ from app.tools import validate_oas as t_validate
 from app.tools import fix_oas as t_fix
 from app.tools import search_api_registry as t_registry
 from app.tools import search_api_referential as t_referential
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP(name="API Assistant — MCP Server", version="0.1.0")
 
@@ -54,6 +65,8 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     what to do with this result. Every source="rag" violation carries
     source_document/source_section — cite these when quoting a guideline.
     """
+    logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
+                api_name, format, len(oas_content))
     return t_validate.validate_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
 
@@ -72,6 +85,8 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     — use rule_explanation to decide), and guideline_notes (prose context,
     each citing source_document/source_section it came from).
     """
+    logger.info("tools/call fix_oas: api_name=%s format=%s oas_content=%d chars",
+                api_name, format, len(oas_content))
     return t_fix.fix_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 
 
@@ -87,6 +102,7 @@ def search_api_registry(query: str, top_k: int = 5, api_id: str | None = None) -
     api_id yet, call search_api_referential first instead of guessing. Each
     hit carries source_document (the OAS filename it came from) — cite it.
     """
+    logger.info("tools/call search_api_registry: query=%r top_k=%d api_id=%s", query, top_k, api_id)
     return t_registry.search_api_registry(SearchRegistryInput(query=query, top_k=top_k, api_id=api_id))
 
 
@@ -103,6 +119,7 @@ def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResul
     plainly instead of proceeding with a guess. Each hit carries
     source_document (the inventory filename it came from) — cite it.
     """
+    logger.info("tools/call search_api_referential: query=%r top_k=%d", query, top_k)
     return t_referential.search_api_referential(SearchReferentialInput(query=query, top_k=top_k))
 
 
