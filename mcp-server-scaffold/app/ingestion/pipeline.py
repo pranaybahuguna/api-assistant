@@ -12,9 +12,9 @@ their chunks stay distinguishable.
 
 --path is optional for (source, index) pairs with a known default under
 resources/ (see _DEFAULT_PATHS) — the API Design Guidelines docx, the
-doc-mgmt-api OAS sample, and the API Referential sample all ship in the
-repo under resources/, so each of the three commands below runs with no
---path at all. Pass --path explicitly to ingest something else instead.
+five sample OAS specs under resources/apis/, and the API Referential
+sample all ship in the repo, so each of the three commands below runs with
+no --path at all. Pass --path explicitly to ingest something else instead.
 
 Usage:
   python -m app.ingestion.pipeline --source docx        --index guidelines
@@ -56,7 +56,7 @@ _EXTENSIONS = {
 # run with no --path at all.
 _DEFAULT_PATHS = {
     ("docx", "guidelines"): "./resources/API-Design-Guidelines.docx",
-    ("oas", "registry"): "./resources/doc-mgmt-api.yaml",
+    ("oas", "registry"): "./resources/apis/",
     ("referential", "referential"): "./resources/api-referential.yaml",
 }
 

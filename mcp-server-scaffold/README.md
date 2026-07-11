@@ -267,12 +267,25 @@ configuration; you need both).
 ## Sample content in resources/
 
 - `API-Design-Guidelines.docx` — a sample guidelines doc (headings,
-  tables, one embedded diagram) for the `guidelines` index.
-- `doc-mgmt-api.yaml` — a sample OAS spec for the `registry` index.
-- `api-referential.yaml` — a sample API inventory for the `referential` index.
+  tables, three embedded diagrams) for the `guidelines` index.
+- `apis/` — five sample OAS specs for the `registry` index, spanning
+  different domains on purpose so semantic search has something real to
+  discriminate between:
 
-All three are placeholder/demo content, not real Org APIs — swap them for
-your own sources any time; see Quickstart below for how ingestion finds them.
+  | api_id | Domain |
+  |---|---|
+  | `doc-mgmt-api` | Document storage/retrieval |
+  | `payments-api` | Cross-border payments |
+  | `client-onboarding-api` | Client registration + KYC |
+  | `fx-rates-api` | FX spot rates (read-only, no writes) |
+  | `trade-settlement-api` | Securities trade settlement |
+- `api-referential.yaml` — the matching inventory for all five APIs above,
+  for the `referential` index (same `api_id`s link the two).
+
+All of it is placeholder/demo content, not real Org APIs — swap it for
+your own sources any time; see Quickstart below for how ingestion finds
+them, and "Ingestion pipeline" above for how to point `--path` at a
+directory of your own OAS files instead.
 
 ## Configuration reference (`.env`)
 
