@@ -27,9 +27,9 @@ class ValidateOASResult(BaseModel):
 
 
 class FixOASResult(BaseModel):
-    fixed_oas_content: str
-    changes_made: list[str]
-    unresolved_violations: list[GuidelineViolation]
+    mechanical_fixes: list[GuidelineViolation]   # ruleset defines a suggested_fix — apply as-is
+    needs_judgment: list[GuidelineViolation]      # no suggested_fix — decide using rule_explanation
+    guideline_notes: list[GuidelineViolation]     # prose context from the Guidelines Index
     summary: str
 
 

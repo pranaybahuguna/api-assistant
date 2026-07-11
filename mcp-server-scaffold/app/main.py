@@ -11,6 +11,9 @@ Run:
     python -m app.main
     # or: fastmcp run app.main:mcp --transport streamable-http --port 8080
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastmcp import FastMCP
 
 from app.models import (
@@ -40,10 +43,14 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
 
 @mcp.tool
 def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None) -> FixOASResult:
-    """Fix an OpenAPI spec so it complies with API Design Guidelines.
+    """Get a fix plan for an OpenAPI spec against API Design Guidelines.
 
-    Returns the corrected spec, the list of changes made, and any
-    violations that could not be auto-fixed.
+    Does NOT rewrite the spec — apply the fixes yourself. Returns
+    mechanical_fixes (each has a concrete suggested_fix from the ruleset —
+    apply as stated), needs_judgment (a violation exists but the ruleset
+    has no one-line fix — use rule_explanation to decide how to resolve
+    it), and guideline_notes (prose context for rules Spectral can't check
+    structurally). After editing, call validate_oas again to confirm.
     """
     return t_fix.fix_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
 

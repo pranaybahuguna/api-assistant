@@ -32,6 +32,9 @@ Usage:
 import argparse
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from langchain_core.documents import Document
 
 from app.ingestion.loaders import load_docx, load_pdf, load_oas, load_referential

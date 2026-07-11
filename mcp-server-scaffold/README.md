@@ -27,11 +27,12 @@ catalogue to keep in sync.
         │  (resources/           │              │  Guidelines / Registry /  │
         │   api-ruleset.yaml)│              │  Referential              │
         └───────────────────────┘              └───────────┬──────────────┘
-                                                             │ embeddings
+                                                             │ embeddings + OCR
                                                              ▼
                                                  ┌─────────────────────────┐
                                                  │ Internal LLM gateway      │
-                                                 │ (chat + embeddings)       │
+                                                 │ (embeddings + OCR only —  │
+                                                 │  never rewrites a spec)   │
                                                  └─────────────────────────┘
 ```
 
@@ -40,7 +41,7 @@ catalogue to keep in sync.
 | Tool | Purpose |
 |---|---|
 | `validate_oas` | Spectral lint + Guidelines Index retrieval (report only, does not modify the spec) |
-| `fix_oas` | Same checks, then an LLM rewrite; returns the corrected spec + unresolved findings |
+| `fix_oas` | Same checks, reshaped into a fix plan (report only — no LLM call, no rewrite; the calling agent applies the fixes) |
 | `search_api_registry` | Endpoint-level semantic search over ingested OAS specs; supports `api_id` filter |
 | `search_api_referential` | API discovery — "which API do I need for X"; returns `api_id` for a follow-up registry search |
 
@@ -68,14 +69,16 @@ and ruleset are the only contract):
 finding/note in one list; only Spectral `error`-severity findings flip
 `is_valid` to `False`.
 
-`fix_oas` (`app/tools/fix_oas.py`) runs the same two checks independently
-(fresh Spectral run + guideline context), feeds both into a prompt asking
-the internal LLM to rewrite the spec ("change only what a finding or
-guideline requires; don't break existing consumers"), parses the model's
-JSON response (`{"fixed_oas": "...", "changes": [...]}`, tolerating stray
-markdown fences), then **re-runs Spectral on its own output** so
-`unresolved_violations` reflects what's actually still wrong in the fixed
-spec — not what the model claims to have fixed.
+`fix_oas` (`app/tools/fix_oas.py`) runs the same two checks and reshapes
+the Spectral findings into `mechanical_fixes` (the ruleset defines a
+concrete `suggested_fix` — apply it as stated) vs. `needs_judgment` (a
+violation exists but there's no one-line fix — the caller must use
+`rule_explanation` to decide), plus `guideline_notes` for prose context.
+**It does not call an LLM and does not rewrite the spec.** The MCP server
+only ever calls an LLM-style endpoint for embeddings and OCR — actually
+fixing a spec is the calling agent's job, using its own LLM and this
+tool's output as instructions. Call `validate_oas` again on the agent's
+edited result to confirm the fixes actually resolved the findings.
 
 ### search_api_registry / search_api_referential
 
@@ -163,16 +166,15 @@ python -m app.ingestion.pipeline --source referential --index referential
 ### OCR: vision LLM, not a local binary
 
 Images embedded in ingested `.docx` files are read via an OpenAI-compatible
-vision call (`app/ingestion/loaders.py`'s `_ocr_image`) — the image is
+vision call (`app/ingestion/loaders.py`'s `_ocr_image`, using
+`app/integrations/internal_llm.py`'s `get_ocr_model()`) — the image is
 base64-encoded into a `data:` URL and sent alongside a fixed OCR prompt —
-not a local `tesseract` install. One less system dependency, and no
-separate OCR pipeline to keep in sync with the LLM client config. Uses
-`OCR_MODEL` if set (a dedicated internal vision/OCR deployment), otherwise
-falls back to `CHAT_MODEL` — same gateway either way, just a different
-model name on the same OpenAI-wire-format request. If the vision call
-fails (model doesn't support images, network error), ingestion continues
-and just skips that image's text with a logged warning, so a missing OCR
-model never blocks ingestion of the rest of the document.
+not a local `tesseract` install. This is the **only** LLM-style call the
+server makes beyond embeddings; `OCR_MODEL` selects which model on the
+gateway to use for it. If the vision call fails (model doesn't support
+images, network error), ingestion continues and just skips that image's
+text with a logged warning, so a missing OCR model never blocks ingestion
+of the rest of the document.
 
 `API-Design-Guidelines.docx` ships with three embedded diagrams as a
 worked example — one per section (4. Idempotency, 6. Authentication and
@@ -256,8 +258,7 @@ settings object duplicating these across `.env` and Python.
 | `FAISS_DIR` | `./vector_data` | Where FAISS index files are saved |
 | `LLM_BASE_URL` | internal gateway URL | Chat model base URL (OpenAI-compatible) |
 | `LLM_API_KEY` | `changeme` | Bearer key for chat and for the embeddings gateway |
-| `CHAT_MODEL` | `internal-llm` | Model name used by `fix_oas`, and by OCR if `OCR_MODEL` is unset |
-| `OCR_MODEL` | — | Optional dedicated vision model for docx image OCR; falls back to `CHAT_MODEL` |
+| `OCR_MODEL` | `internal-llm` | Vision model used for docx image OCR — the only LLM-style call this server makes beyond embeddings |
 | `EMBEDDING_ENDPOINT_URL` | — | Required — the custom embeddings gateway URL |
 | `EMBEDDING_MODEL` | `text-embedding-3-large` | Model name sent to the embeddings gateway |
 | `EMBEDDING_CERT_PATH` | — | Optional custom CA bundle for the embeddings gateway |

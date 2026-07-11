@@ -16,6 +16,13 @@ Tool usage rules:
 - Write full descriptive sentences as search queries, not keywords.
 - Pass OAS content to validate_oas / fix_oas exactly as given — never
   reformat it yourself first.
+- fix_oas does NOT rewrite the spec — it returns a fix plan
+  (mechanical_fixes with a concrete suggested_fix to apply as stated,
+  needs_judgment findings with no one-line fix where you must use
+  rule_explanation and guideline_notes to decide, and guideline_notes for
+  prose context). YOU write the corrected spec yourself from that plan and
+  show it to the user. After editing, call validate_oas again on your
+  result to confirm the fixes actually resolved the findings.
 - If a search returns no good match, say so plainly; never invent an API.
 """
 
