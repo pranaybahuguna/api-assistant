@@ -15,13 +15,13 @@ class GuidelineViolation(BaseModel):
     message: str
     path: str = ""                       # location inside the OAS
     severity: Literal["error", "warning", "info"] = "warning"
-    # "spectral-core": generic OpenAPI best-practice rules from Spectral's
-    #   built-in `spectral:oas` ruleset (extends: in api-ruleset.yaml).
-    # "custom-ruleset": Org-specific rules defined in api-ruleset.yaml's
-    #   own `rules:` section (mechanically enforced, each has an x-fix).
-    # "rag": prose guidance retrieved from the Guidelines Index — not a
-    #   Spectral finding at all.
-    source: Literal["spectral-core", "custom-ruleset", "rag"] = "spectral-core"
+    # One of: "spectral-core" (generic OpenAPI best-practice rules from
+    # Spectral's built-in spectral:oas ruleset), "custom-ruleset" (Org-specific
+    # rules defined in api-ruleset.yaml's own rules: section), or "rag"
+    # (prose guidance retrieved from the Guidelines Index, not a Spectral
+    # finding). Kept as a plain str (not a Literal) so a stale/older value
+    # never hard-fails GuidelineViolation construction.
+    source: str = "spectral-core"
     rule_explanation: str | None = None  # enriched from the ruleset lookup dict
     suggested_fix: str | None = None
     # Citation — always None for source="spectral-core" (generic OpenAPI
