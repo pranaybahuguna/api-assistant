@@ -29,6 +29,7 @@ import yaml
 from app.models import OASInput, ValidateOASResult, GuidelineViolation
 from app.integrations.spectral import run_spectral, SpectralError
 from app.rag.retriever import retrieve_guidelines, get_section_chunks, build_guidelines_toc
+from app.rag.guideline_linker import link_guidelines
 
 logger = logging.getLogger(__name__)
 
@@ -115,16 +116,17 @@ def _note(doc) -> GuidelineViolation:
 
 
 def guideline_context(oas_content: str, parsed: dict | None) -> list[GuidelineViolation]:
-    """Fact-based retrieval for a parsed spec; one raw-text query as the
-    degraded fallback for malformed input. Deduped, capped."""
+    """Structural anchoring for a parsed spec (guideline notes carry a
+    `path` pointing at the OAS element they apply to — see
+    app/rag/guideline_linker.py); one raw-text query as the degraded
+    fallback for malformed input."""
     if parsed is not None:
-        facts = derive_facts(parsed)
-        logger.info("guideline_context: %d fact-based queries: %s", len(facts), facts)
-        docs = [d for fact in facts for d in retrieve_guidelines(fact, k=2)]
-    else:
-        logger.info("guideline_context: spec not parseable — raw-text fallback query")
-        docs = retrieve_guidelines(f"API design rules relevant to: {oas_content[:600]}", k=4)
+        notes = link_guidelines(parsed)
+        logger.info("guideline_context: anchored %d guideline note(s) to OAS elements", len(notes))
+        return notes
 
+    logger.info("guideline_context: spec not parseable — raw-text fallback query")
+    docs = retrieve_guidelines(f"API design rules relevant to: {oas_content[:600]}", k=4)
     notes, seen = [], set()
     for d in docs:
         key = (d.metadata.get("source"), d.metadata.get("section"), d.page_content[:80])
