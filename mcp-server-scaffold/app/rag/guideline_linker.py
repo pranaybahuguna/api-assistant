@@ -39,13 +39,20 @@ _HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 # runs still return something.
 K_PER_ELEMENT = 2
 MAX_NOTES = 8
-SCORE_THRESHOLD: float | None = None
+# Tuned against text-embedding-3-small on the sample guidelines doc: real
+# match distances cluster ~1.25-1.55, so 1.5 trims the clear tail without
+# emptying any element. RE-CHECK on the real (larger) guidelines corpus —
+# distance ranges shift with corpus size and embedding model.
+SCORE_THRESHOLD: float | None = 1.5
 
 # Phase 2: subtracted from a hit's distance when its scope matches the
 # element being examined, so scope-aligned guidelines rank higher (soft
-# boost, not a hard filter — robust to imperfect scope tags). Magnitude is
-# in L2-distance units and needs a real-embeddings run to tune.
-SCOPE_BOOST = 0.3
+# boost, not a hard filter — robust to imperfect scope tags). Tuned to 0.1:
+# adjacent hits differ by ~0.05, so 0.1 reorders near-ties toward scope
+# matches without steamrolling a genuinely-closer non-matching hit (0.3
+# did, effectively becoming a hard filter). L2-distance units — re-check
+# on the real corpus.
+SCOPE_BOOST = 0.1
 
 # Which guideline scopes are relevant to each kind of OAS element. A chunk
 # scoped "global" matches every element (wildcard, handled in _scope_match).
