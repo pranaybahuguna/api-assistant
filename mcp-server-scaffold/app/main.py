@@ -27,7 +27,6 @@ to see what happened for every call without needing a debugger — check
 stdout/stderr wherever the server process is running.
 """
 import logging
-import pprint
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -71,7 +70,7 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
     validate_resp = t_validate.validate_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
-    pprint.pprint(f"### Validate_oas OUTPUT: {validate_resp}")
+    logger.info("### Validate_oas OUTPUT: %s", validate_resp)
     return validate_resp
 
 
@@ -93,7 +92,7 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     logger.info("tools/call fix_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
     fix_response = t_fix.fix_oas(OASInput(oas_content=oas_content, format=format, api_name=api_name))
-    pprint.pprint(f"### Fix_oas OUTPUT: {fix_response}")
+    logger.info("### Fix_oas OUTPUT: %s", fix_response)
     return fix_response
 
 
@@ -111,7 +110,7 @@ def search_api_registry(query: str, top_k: int = 5, api_id: str | None = None) -
     """
     logger.info("tools/call search_api_registry: query=%r top_k=%d api_id=%s", query, top_k, api_id)
     registry_resp = t_registry.search_api_registry(SearchRegistryInput(query=query, top_k=top_k, api_id=api_id))
-    pprint.pprint(f"### Search_api_registry OUTPUT: {registry_resp}")
+    logger.info("### Search_api_registry OUTPUT: %s", registry_resp)
     return registry_resp
 
 
@@ -130,7 +129,7 @@ def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResul
     """
     logger.info("tools/call search_api_referential: query=%r top_k=%d", query, top_k)
     referential_resp = t_referential.search_api_referential(SearchReferentialInput(query=query, top_k=top_k))
-    pprint.pprint(f"### Search_api_referential OUTPUT: {referential_resp}")
+    logger.info("### Search_api_referential OUTPUT: %s", referential_resp)
     return referential_resp
 
 
@@ -150,7 +149,7 @@ def get_guideline_section(section: str, document: str | None = None) -> GetGuide
     """
     logger.info("tools/call get_guideline_section: section=%r document=%s", section, document)
     section_resp = t_section.get_guideline_section(GuidelineSectionInput(section=section, document=document))
-    pprint.pprint(f"### Get_guideline_section OUTPUT: {section_resp}")
+    logger.info("### Get_guideline_section OUTPUT: %s", section_resp)
     return section_resp
 
 
