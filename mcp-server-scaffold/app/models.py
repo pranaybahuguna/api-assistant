@@ -31,13 +31,18 @@ class GuidelineViolation(BaseModel):
     # underlying doc/section-naming convention either way.
     source_document: str | None = None   # e.g. "API-Design-Guidelines.docx"
     source_section: str | None = None    # e.g. "6. Authentication and Authorization"
+    # For custom-ruleset findings only: the actual guideline prose from the
+    # section this rule enforces, fetched by exact section match — so the
+    # finding carries the "why" text, not just a pointer to it.
+    guideline_excerpt: str | None = None
 
 
 class ValidateOASResult(BaseModel):
     is_valid: bool
     violations: list[GuidelineViolation]
     summary: str
-    next_step: str  # what the caller should do next, given this result
+    next_step: str       # what the caller should do next, given this result
+    guidelines_toc: str  # table of contents of the guidelines corpus — call get_guideline_section for full text
 
 
 class FixOASResult(BaseModel):
@@ -45,7 +50,27 @@ class FixOASResult(BaseModel):
     needs_judgment: list[GuidelineViolation]      # no suggested_fix — decide using rule_explanation
     guideline_notes: list[GuidelineViolation]     # prose context from the Guidelines Index
     summary: str
-    next_step: str  # what the caller should do next, given this result
+    next_step: str       # what the caller should do next, given this result
+    guidelines_toc: str  # table of contents of the guidelines corpus — call get_guideline_section for full text
+
+
+# ---------- get_guideline_section ----------
+
+class GuidelineSectionInput(BaseModel):
+    section: str = Field(..., description="Section name or fragment, e.g. '4. Idempotency' or just 'idempotency'")
+    document: str | None = Field(None, description="Restrict to one source document filename (from guidelines_toc)")
+
+
+class GuidelineSection(BaseModel):
+    document: str
+    section: str
+    content: str
+
+
+class GetGuidelineSectionResult(BaseModel):
+    matches: list[GuidelineSection]
+    summary: str
+    next_step: str
 
 
 # ---------- search_api_registry ----------

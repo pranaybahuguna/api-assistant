@@ -38,11 +38,13 @@ from app.models import (
     OASInput, ValidateOASResult, FixOASResult,
     SearchRegistryInput, SearchRegistryResult,
     SearchReferentialInput, SearchReferentialResult,
+    GuidelineSectionInput, GetGuidelineSectionResult,
 )
 from app.tools import validate_oas as t_validate
 from app.tools import fix_oas as t_fix
 from app.tools import search_api_registry as t_registry
 from app.tools import search_api_referential as t_referential
+from app.tools import get_guideline_section as t_section
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -130,6 +132,26 @@ def search_api_referential(query: str, top_k: int = 5) -> SearchReferentialResul
     referential_resp = t_referential.search_api_referential(SearchReferentialInput(query=query, top_k=top_k))
     pprint.pprint(f"### Search_api_referential OUTPUT: {referential_resp}")
     return referential_resp
+
+
+@mcp.tool
+def get_guideline_section(section: str, document: str | None = None) -> GetGuidelineSectionResult:
+    """Fetch the full text of a named Org design-guidelines section, by
+    name (case-insensitive fragment works: 'idempotency' finds
+    '4. Idempotency'). Call this when the user asks about a specific
+    guideline topic in depth, or when a validate_oas/fix_oas finding cites
+    a source_section you need the complete text of — top-k retrieval only
+    surfaces excerpts; this returns the whole section.
+
+    The guidelines_toc field on validate_oas/fix_oas responses lists every
+    section that exists — pick names from there. Optionally pass document
+    to disambiguate when multiple guideline documents are ingested. Quote
+    results with their document/section citation.
+    """
+    logger.info("tools/call get_guideline_section: section=%r document=%s", section, document)
+    section_resp = t_section.get_guideline_section(GuidelineSectionInput(section=section, document=document))
+    pprint.pprint(f"### Get_guideline_section OUTPUT: {section_resp}")
+    return section_resp
 
 
 # Single Starlette app, built once — this is what `uvicorn app.main:app`

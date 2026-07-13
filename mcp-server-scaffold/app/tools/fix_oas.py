@@ -10,13 +10,15 @@ import logging
 
 from app.models import OASInput, FixOASResult
 from app.integrations.spectral import run_spectral
-from app.tools.validate_oas import guideline_context
+from app.rag.retriever import build_guidelines_toc
+from app.tools.validate_oas import guideline_context, attach_guideline_excerpts
 
 logger = logging.getLogger(__name__)
 
 
 def fix_oas(payload: OASInput) -> FixOASResult:
     findings = run_spectral(payload.oas_content, payload.format)
+    attach_guideline_excerpts(findings)
     notes = guideline_context(payload.oas_content)
 
     mechanical = [v for v in findings if v.suggested_fix]
@@ -32,7 +34,8 @@ def fix_oas(payload: OASInput) -> FixOASResult:
     else:
         parts = []
         if mechanical:
-            parts.append("apply each mechanical_fixes entry's suggested_fix as stated")
+            parts.append("apply each mechanical_fixes entry's suggested_fix as stated (its "
+                          "guideline_excerpt carries the guideline prose behind the rule)")
         if needs_judgment:
             parts.append("for each needs_judgment entry, use its rule_explanation "
                           "(and guideline_notes for context) to decide the right change")
@@ -48,4 +51,5 @@ def fix_oas(payload: OASInput) -> FixOASResult:
                 f"suggested fix, {len(needs_judgment)} needing judgment; "
                 f"{len(notes)} guideline note(s) for context.",
         next_step=next_step,
+        guidelines_toc=build_guidelines_toc(),
     )
