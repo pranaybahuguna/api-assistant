@@ -1,12 +1,20 @@
 """
-Guideline linker (Phase 1: structural anchoring).
+Guideline linker.
 
-The old approach ran a few whole-spec queries and returned a flat list of
-guideline notes with no sense of WHERE in the OAS each one applied. This
-inverts it: decompose the spec into addressable elements (the info block,
-each operation, each schema), retrieve guidelines per element, and anchor
-each hit to the element's location so a note reads "this guideline applies
-to paths./items.post" instead of floating unattached.
+Phase 1 — structural anchoring: the old approach ran a few whole-spec
+queries and returned a flat list of guideline notes with no sense of WHERE
+in the OAS each one applied. This inverts it: decompose the spec into
+addressable elements (the info block, each operation, each schema),
+retrieve guidelines per element, and anchor each hit to the element's
+location so a note reads "this guideline applies to paths./items.post"
+instead of floating unattached.
+
+Phase 2 — scope awareness: each guideline chunk is tagged at ingestion
+with the OAS construct(s) it concerns (app/ingestion/scope_rules.py). When
+linking, a hit whose scope matches the element's kind gets a soft distance
+boost (SCOPE_BOOST), so a response-scoped guideline out-ranks a
+merely-text-similar one on an operation and won't get pulled onto a
+schema. Soft boost, not a hard filter — robust to imperfect scope tags.
 
 Only embeddings are used (via retrieve_with_scores) — no LLM calls, in
 keeping with the server's embeddings+OCR-only constraint.
@@ -32,6 +40,27 @@ _HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 K_PER_ELEMENT = 2
 MAX_NOTES = 8
 SCORE_THRESHOLD: float | None = None
+
+# Phase 2: subtracted from a hit's distance when its scope matches the
+# element being examined, so scope-aligned guidelines rank higher (soft
+# boost, not a hard filter — robust to imperfect scope tags). Magnitude is
+# in L2-distance units and needs a real-embeddings run to tune.
+SCOPE_BOOST = 0.3
+
+# Which guideline scopes are relevant to each kind of OAS element. A chunk
+# scoped "global" matches every element (wildcard, handled in _scope_match).
+_ELEMENT_SCOPES: dict[str, set[str]] = {
+    "info": set(),  # only "global" chunks boost onto info
+    "operation": {"operation", "query-param", "header", "request-body", "response", "security"},
+    "schema": {"schema", "request-body", "response"},
+}
+
+
+def _scope_match(chunk_scopes, element_kind: str) -> bool:
+    scopes = set(chunk_scopes or [])
+    if "global" in scopes:
+        return True
+    return bool(scopes & _ELEMENT_SCOPES.get(element_kind, set()))
 
 
 @dataclass
@@ -119,13 +148,17 @@ def link_guidelines(spec: dict) -> list[GuidelineViolation]:
 
     for element in extract_oas_elements(spec):
         for doc, score in retrieve_with_scores(Index.GUIDELINES, element.description, k=K_PER_ELEMENT):
-            if SCORE_THRESHOLD is not None and score > SCORE_THRESHOLD:
+            # Phase 2: scope-aware soft boost — a scope-matching guideline
+            # gets a lower (better) effective distance, so it out-ranks a
+            # merely-text-similar one and is likelier to survive the cutoff.
+            adjusted = score - SCOPE_BOOST if _scope_match(doc.metadata.get("scope"), element.kind) else score
+            if SCORE_THRESHOLD is not None and adjusted > SCORE_THRESHOLD:
                 continue
             key = (element.location, doc.metadata.get("section"), doc.page_content[:80])
             if key in seen:
                 continue
             seen.add(key)
-            anchored.append((score, GuidelineViolation(
+            anchored.append((adjusted, GuidelineViolation(
                 rule_id="guideline-link",
                 message=doc.page_content[:400],
                 path=element.location,
@@ -135,5 +168,5 @@ def link_guidelines(spec: dict) -> list[GuidelineViolation]:
                 source_section=doc.metadata.get("section"),
             )))
 
-    anchored.sort(key=lambda pair: pair[0])  # closest first
+    anchored.sort(key=lambda pair: pair[0])  # closest (scope-adjusted) first
     return [v for _, v in anchored[:MAX_NOTES]]

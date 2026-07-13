@@ -100,6 +100,15 @@ def run(source: str, path_args: list[str] | None, index_name: str) -> None:
         units.extend(loader(path))
 
     chunks = chunk_units(units)
+
+    # Phase 2: tag guideline chunks with their scope (what OAS construct the
+    # rule is about), so the linker can prefer scope-matching chunks. Only
+    # the guidelines index — registry/referential chunks aren't guidelines.
+    if index_name == "guidelines":
+        from app.ingestion.scope_rules import infer_scopes
+        for c in chunks:
+            c.metadata["scope"] = infer_scopes(c.metadata.get("section"), c.text)
+
     docs = [Document(page_content=c.text, metadata=c.metadata) for c in chunks]
 
     index = _INDEXES[index_name]
