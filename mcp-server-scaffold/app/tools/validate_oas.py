@@ -200,27 +200,30 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
     if parsed is None or parse_errors:
         next_step = ("The spec is malformed or not a valid OpenAPI document — the parser/structure "
                      "findings above are the blocking problem, and deeper rule findings stay hidden "
-                     "until it parses. The guideline notes (source=rag) are anticipatory context "
-                     "retrieved from the raw text, not confirmed findings. If the user only asked to "
-                     "validate, report this as-is. If the user asked for a fix: correct the syntax AND "
-                     "apply the guideline context in the same edit, then call validate_oas again — "
-                     "expect new findings to surface once the document parses.")
+                     "until it parses. The guideline notes (source=rag) are recommendations sourced "
+                     "from the design guidelines. If the user only asked to validate, report this "
+                     "as-is. If the user asked for a fix: correct the syntax AND apply the guideline "
+                     "notes in the same edit, then call validate_oas again — expect new findings to "
+                     "surface once the document parses.")
     elif errors:
         next_step = ("This validation report is the answer if the user only asked to validate — "
                      "present these findings grouped into three sections: Spectral lint findings "
                      "(source=spectral-core, generic OpenAPI best practices), Custom Ruleset findings "
                      "(source=custom-ruleset, Org-specific mechanically-enforced rules, each carrying "
-                     "the guideline prose it enforces in guideline_excerpt), and Guideline notes "
-                     "(source=rag) — don't merge them into one flat list. Only call fix_oas if the "
-                     "user separately asks you to fix or correct the spec.")
+                     "the guideline text it enforces in guideline_excerpt), and Guideline notes "
+                     "(source=rag, recommendations sourced from the design guidelines) — don't merge "
+                     "them into one flat list. Only call fix_oas if the user separately asks you to "
+                     "fix or correct the spec.")
     elif spectral:
         next_step = ("No blocking errors, but there are warnings above — report them (grouped by "
-                     "source: spectral-core vs custom-ruleset) and the guideline notes (source=rag) "
-                     "to the user. Only pursue a fix if the user asks for one.")
+                     "source: spectral-core vs custom-ruleset) and the guideline notes (source=rag, "
+                     "recommendations sourced from the design guidelines) to the user. Only pursue "
+                     "a fix if the user asks for one.")
     else:
-        next_step = ("Spec is fully compliant. Review the guideline notes (source=rag) for any "
-                     "manual judgment calls; no fix needed. guidelines_toc lists every guideline "
-                     "section — call get_guideline_section if the user asks about one in depth.")
+        next_step = ("Spec is fully compliant. Review the guideline notes (source=rag) — "
+                     "recommendations sourced from the design guidelines — and apply any that are "
+                     "relevant; no fix needed. guidelines_toc lists every guideline section — call "
+                     "get_guideline_section if the user asks about one in depth.")
 
     if guidelines_summary:
         next_step += (" guidelines_summary is a condensed whole-corpus digest of every design/"

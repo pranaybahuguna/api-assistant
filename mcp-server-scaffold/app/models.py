@@ -18,7 +18,7 @@ class GuidelineViolation(BaseModel):
     # One of: "spectral-core" (generic OpenAPI best-practice rules from
     # Spectral's built-in spectral:oas ruleset), "custom-ruleset" (Org-specific
     # rules defined in api-ruleset.yaml's own rules: section), or "rag"
-    # (prose guidance retrieved from the Guidelines Index, not a Spectral
+    # (a recommendation sourced from the Guidelines Index, not a Spectral
     # finding). Kept as a plain str (not a Literal) so a stale/older value
     # never hard-fails GuidelineViolation construction.
     source: str = "spectral-core"
@@ -55,7 +55,7 @@ class ValidateOASResult(BaseModel):
 class FixOASResult(BaseModel):
     mechanical_fixes: list[GuidelineViolation]   # ruleset defines a suggested_fix — apply as-is
     needs_judgment: list[GuidelineViolation]      # no suggested_fix — decide using rule_explanation
-    guideline_notes: list[GuidelineViolation]     # prose context from the Guidelines Index
+    guideline_notes: list[GuidelineViolation]     # recommendations sourced from the Guidelines Index
     summary: str
     next_step: str       # what the caller should do next, given this result
     guidelines_toc: str  # table of contents of the guidelines corpus — call get_guideline_section for full text

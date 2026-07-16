@@ -59,7 +59,8 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
 
     Runs the Spectral lint (findings enriched with rule explanations and
     suggested fixes from the ruleset lookup) plus a Guidelines Index
-    retrieval for prose rules the linter can't check. Read-only — never
+    retrieval for recommendations sourced from the design guidelines that
+    the linter can't check mechanically. Read-only — never
     modifies oas_content. Pass the spec exactly as given/retrieved, never
     reformatted. If the user only asked you to validate, this report IS the
     final answer — do not proactively call fix_oas unless the user asks you
@@ -92,8 +93,9 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     your edited version to confirm. Returns mechanical_fixes (each has a
     concrete suggested_fix from the ruleset — apply as stated),
     needs_judgment (a violation exists but the ruleset has no one-line fix
-    — use rule_explanation to decide), and guideline_notes (prose context,
-    each citing source_document/source_section it came from).
+    — use rule_explanation to decide), and guideline_notes (recommendations
+    sourced from the design guidelines, each citing source_document/
+    source_section it came from).
 
     guidelines_summary (when present) is a condensed whole-corpus digest of
     every design/security rule — worth a pass against it too, since the

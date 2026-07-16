@@ -52,7 +52,7 @@ def fix_oas(payload: OASInput) -> FixOASResult:
         parts = []
         if mechanical:
             parts.append("apply each mechanical_fixes entry's suggested_fix as stated (its "
-                          "guideline_excerpt carries the guideline prose behind the rule)")
+                          "guideline_excerpt carries the guideline text behind the rule)")
         if needs_judgment:
             parts.append("for each needs_judgment entry, use its rule_explanation "
                           "(and guideline_notes for context) to decide the right change")
