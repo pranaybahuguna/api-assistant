@@ -105,7 +105,11 @@ def _tag_scopes(chunks, index_name: str) -> None:
         for c in chunks:
             scope, extra = llm_infer_scopes(c.metadata.get("section"), c.text)
             c.metadata["scope"] = scope
-            c.metadata.update({k: v for k, v in extra.items() if v})  # applies_when, check_type
+            if "is_rule" in extra:                    # store even when False
+                c.metadata["is_rule"] = extra["is_rule"]
+            for key in ("applies_when", "check_type"):  # only if the model filled them
+                if extra.get(key):
+                    c.metadata[key] = extra[key]
     else:
         from app.ingestion.scope_rules import infer_scopes
         for c in chunks:

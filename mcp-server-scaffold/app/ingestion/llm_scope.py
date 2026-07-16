@@ -26,9 +26,14 @@ logger = logging.getLogger(__name__)
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
-_PROMPT = """You classify a rule from an API design guideline by which parts of an
-OpenAPI (OAS) spec it governs.
+_PROMPT = """You analyse a chunk from an API design guideline document.
 
+First decide if it is an enforceable API DESIGN RULE (a "must/should" about how
+an OpenAPI spec is built) versus REFERENCE / onboarding / example material
+(tool download links, environment info, public-key examples, generic prose that
+states no design requirement). Reference material is NOT a design rule.
+
+If it IS a design rule, also say which OAS constructs it governs.
 Allowed scope values (use only these): global, path, operation, query-param,
 header, request-body, response, schema, security.
   - global: API-wide / applies broadly (naming philosophy, change management)
@@ -43,7 +48,8 @@ Guideline text:
 ---
 
 Respond with ONLY this JSON (no markdown fences):
-{{"scope": ["<one or more allowed values>"],
+{{"is_design_rule": true or false,
+  "scope": ["<one or more allowed values; use [\\"global\\"] if unsure or not a rule>"],
   "applies_when": "<short condition describing when this rule applies to an OAS element, or empty>",
   "check_type": "mechanical" or "judgment"}}"""
 
@@ -74,9 +80,12 @@ def llm_infer_scopes(section: str | None, text: str) -> tuple[list[str], dict]:
 
         scope = [s for s in card.get("scope", []) if isinstance(s, str) and s in SCOPES]
         if not scope:
-            raise ValueError("no valid scope values returned")
+            scope = ["global"]  # keep the chunk; just broadly-scoped
 
         extra = {
+            # False only when the model is confident it's reference/onboarding
+            # material, so a parse hiccup never wrongly hides a real rule.
+            "is_rule": card.get("is_design_rule", True) is not False,
             "applies_when": str(card.get("applies_when", "")).strip(),
             "check_type": str(card.get("check_type", "")).strip(),
         }

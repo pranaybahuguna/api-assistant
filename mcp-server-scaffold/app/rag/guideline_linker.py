@@ -154,7 +154,16 @@ def link_guidelines(spec: dict) -> list[GuidelineViolation]:
     seen: set[tuple[str, str | None, str]] = set()
 
     for element in extract_oas_elements(spec):
-        for doc, score in retrieve_with_scores(Index.GUIDELINES, element.description, k=K_PER_ELEMENT):
+        kept = 0
+        # Over-fetch so that skipping non-rules doesn't shrink the count.
+        for doc, score in retrieve_with_scores(Index.GUIDELINES, element.description, k=K_PER_ELEMENT + 3):
+            # Exclude chunks the LLM tagger marked as reference/onboarding
+            # material (is_rule False) — those clutter auto-anchoring with
+            # things like tool docs. They're still findable via
+            # get_guideline_section (explicit lookup). Missing/None is_rule
+            # (keyword tagger, legacy) is treated as a rule = included.
+            if doc.metadata.get("is_rule") is False:
+                continue
             # Phase 2: scope-aware soft boost — a scope-matching guideline
             # gets a lower (better) effective distance, so it out-ranks a
             # merely-text-similar one and is likelier to survive the cutoff.
@@ -174,6 +183,9 @@ def link_guidelines(spec: dict) -> list[GuidelineViolation]:
                 source_document=doc.metadata.get("source"),
                 source_section=doc.metadata.get("section"),
             )))
+            kept += 1
+            if kept >= K_PER_ELEMENT:
+                break
 
     anchored.sort(key=lambda pair: pair[0])  # closest (scope-adjusted) first
     return [v for _, v in anchored[:MAX_NOTES]]

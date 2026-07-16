@@ -44,7 +44,7 @@ catalogue to keep in sync.
 | `fix_oas` | Same checks, reshaped into a fix plan (report only — no LLM call, no rewrite; the calling agent applies the fixes) |
 | `search_api_registry` | Endpoint-level semantic search over ingested OAS specs; supports `api_id` filter |
 | `search_api_referential` | API discovery — "which API do I need for X"; returns `api_id` for a follow-up registry search |
-| `get_guideline_section` | Fetch a named guidelines section in full, by exact metadata match (no similarity search) |
+| `get_guideline_section` | Fetch a named guidelines section in full (exact metadata match; falls back to semantic content search over all chunks — incl. reference material — when no heading matches) |
 
 ## The validate / fix flows
 
@@ -225,6 +225,20 @@ embedding-model + corpus-size dependent and are tuned to the sample doc;
 Either way it's a metadata tag, so switching taggers (or first enabling
 scope at all) means re-ingesting the guidelines index.
 
+**Rule vs. reference filter (LLM tagger only).** The LLM tagger also decides
+whether each chunk is an enforceable design rule or just reference /
+onboarding material (tool download links, environment info, public-key
+examples, generic prose that states no requirement) and stores the verdict
+in `metadata["is_rule"]`. Auto-anchoring (`link_guidelines`, the notes on
+`validate_oas`/`fix_oas`) **skips `is_rule == False` chunks**, so things
+like "Tool: Karate — download from …" no longer get pulled onto an
+unrelated operation or schema. This is deliberately one-sided: `is_rule`
+absent or `None` (keyword tagger, legacy chunks) is treated as a rule, so
+turning the filter off is just "don't run the LLM tagger." Explicit
+lookups are unaffected — `get_guideline_section` searches **everything**,
+so asking "is there anything about Karate?" still returns the reference
+chunk (see below).
+
 For **malformed** input (no parse tree to walk), `guideline_context()`
 skips linking and falls back to a single raw-text query over
 `oas_content[:600]` — degraded but still useful, and `next_step` labels
@@ -237,7 +251,12 @@ similarity search involved. And the whole corpus is always navigable:
 every validate/fix response includes `guidelines_toc` (each document's
 section list, built from chunk metadata with no embedding call), and the
 `get_guideline_section` tool returns any named section in full — so the
-calling agent is never limited to whatever top-k retrieval surfaced.
+calling agent is never limited to whatever top-k retrieval surfaced. If the
+name matches no heading, `get_guideline_section` falls back to a semantic
+content search across **all** chunks (rules and reference material alike),
+so a topic that isn't a section heading — a tool name in a table, a
+one-off note — is still findable; its `next_step` reports which path was
+used (`section-name` vs `content-search`).
 
 The Spectral findings' own `rule_explanation`/`suggested_fix` are
 unrelated to any of this — those come from a deterministic dict lookup by

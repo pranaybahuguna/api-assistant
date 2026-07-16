@@ -146,6 +146,15 @@ def get_guideline_section(section: str, document: str | None = None) -> GetGuide
     section that exists — pick names from there. Optionally pass document
     to disambiguate when multiple guideline documents are ingested. Quote
     results with their document/section citation.
+
+    If no section heading matches the name, this falls back to a semantic
+    content search over ALL guideline chunks — including reference/onboarding
+    material (tool docs, environment info) that validate_oas deliberately
+    omits from its notes. So a topic that isn't a heading (e.g. a tool name
+    like 'Karate' mentioned inside a table) is still findable here. The
+    result's next_step says which path was used ('section-name' vs
+    'content-search'); content-search hits may be reference material, not
+    enforceable design rules.
     """
     logger.info("tools/call get_guideline_section: section=%r document=%s", section, document)
     section_resp = t_section.get_guideline_section(GuidelineSectionInput(section=section, document=document))
