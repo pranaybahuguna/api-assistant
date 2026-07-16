@@ -204,7 +204,11 @@ def link_guidelines(spec: dict) -> list[GuidelineViolation]:
             seen.add(key)
             anchored.append((adjusted, GuidelineViolation(
                 rule_id="guideline-link",
-                message=doc.page_content[:400],
+                # Full chunk text, not a truncated snippet — the ingestion
+                # chunker already caps prose chunks at ~3500 chars, and the
+                # calling agent needs the whole passage to explain the
+                # issue, not a fragment that stops mid-sentence.
+                message=doc.page_content,
                 path=element.location,
                 severity="info",
                 source="rag",

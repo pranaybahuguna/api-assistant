@@ -105,9 +105,14 @@ def derive_facts(spec: dict) -> list[str]:
 # ------------------------------------------------- guideline retrieval ----
 
 def _note(doc) -> GuidelineViolation:
+    # Full chunk text, not a truncated snippet — the ingestion chunker
+    # already caps prose chunks at ~3500 chars (app/ingestion/chunkers.py),
+    # so there's no benefit to cutting it down further here; the calling
+    # agent needs the whole passage to actually explain the issue, not a
+    # fragment that stops mid-sentence.
     return GuidelineViolation(
         rule_id="guideline-context",
-        message=doc.page_content[:400],
+        message=doc.page_content,
         severity="info",
         source="rag",
         source_document=doc.metadata.get("source"),
@@ -139,12 +144,15 @@ def guideline_context(oas_content: str, parsed: dict | None) -> list[GuidelineVi
 
 def attach_guideline_excerpts(findings: list[GuidelineViolation]) -> None:
     """Give each custom-ruleset finding the actual prose of the guideline
-    section it enforces — exact section-name fetch, no similarity search."""
+    section it enforces — exact section-name fetch, no similarity search.
+    Full section text, not truncated: a short fragment isn't enough for the
+    calling agent to actually explain what's wrong and why — it needs the
+    whole passage."""
     for v in findings:
         if v.source == "custom-ruleset" and v.source_section and not v.guideline_excerpt:
             chunks = get_section_chunks(v.source_section, document=v.source_document)
             if chunks:
-                v.guideline_excerpt = "\n".join(c.page_content for c in chunks)[:600]
+                v.guideline_excerpt = "\n".join(c.page_content for c in chunks)
 
 
 # ------------------------------------------------------- shared analysis ----
