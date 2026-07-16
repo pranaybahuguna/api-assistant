@@ -4,6 +4,7 @@ API Assistant MCP server (over Streamable HTTP).
 """
 from google.adk.agents import LlmAgent
 
+from adk_client.callbacks import remember_user_oas, remember_model_oas, substitute_oas
 from adk_client.internal_llm import get_internal_llm
 from adk_client.mcp_toolset import build_mcp_toolset
 
@@ -14,6 +15,13 @@ Tool usage rules:
 - To find WHICH API to use, call search_api_referential first; then use the
   returned api_id to filter search_api_registry for that API's endpoints.
 - Write full descriptive sentences as search queries, not keywords.
+- When the OAS document already appears in this conversation (the user
+  pasted it, or you produced a corrected version in an earlier reply), call
+  validate_oas / fix_oas with oas_content set to exactly the string
+  LAST_SPEC — the harness substitutes the full spec text automatically.
+  NEVER retype or re-emit the spec inside a tool call, and NEVER refuse
+  because a document is "too large": use LAST_SPEC instead. Only pass full
+  oas_content explicitly if no spec has appeared in the conversation yet.
 - Pass OAS content to validate_oas / fix_oas exactly as given — never
   reformat it yourself first.
 - The fix flow is always: validate_oas first (diagnose, show the user),
@@ -47,6 +55,13 @@ def build_agent() -> LlmAgent:
         description="the API Assistant — API Assistant agent",
         instruction=INSTRUCTION,
         tools=[build_mcp_toolset()],
+        # Spare the model from retyping large specs into tool calls — see
+        # adk_client/callbacks.py. The model passes LAST_SPEC; the real text
+        # is captured from the conversation and substituted before the MCP
+        # call leaves the client.
+        before_agent_callback=remember_user_oas,
+        after_model_callback=remember_model_oas,
+        before_tool_callback=substitute_oas,
     )
 
 
