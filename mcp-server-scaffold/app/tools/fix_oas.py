@@ -49,7 +49,17 @@ def fix_oas(payload: OASInput) -> FixOASResult:
         len(mechanical), len(needs_judgment), len(notes),
     )
 
-    if parsed is None:
+    lint_failures = [v for v in findings if v.rule_id == "spectral-failure"]
+
+    if lint_failures:
+        next_step = ("The Spectral lint step FAILED on the server (see the spectral-failure "
+                     "entry's message for the reason) — there is no lint-based fix plan to "
+                     "apply, and that entry is NOT something to fix in the spec. The "
+                     "guideline_notes (source=rag) don't involve Spectral and still apply. If "
+                     "the failure message points at something in the input you can correct, "
+                     "fix that and retry; otherwise tell the user the linter failed "
+                     "server-side and only guideline-note feedback is available.")
+    elif parsed is None:
         next_step = ("The spec is malformed — it doesn't parse. In ONE edit: fix the syntax "
                      "(see the parser/structure findings for line numbers) AND apply the "
                      "guideline_notes context, so your edit addresses both. " + _NO_COMMENTS +

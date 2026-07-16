@@ -167,17 +167,36 @@ def analyze_oas(payload: OASInput):
     malformed input instead of emitting graceful `parser` findings — when
     the document already failed OUR parse ladder, that crash is tolerated
     and the synthetic parse-error finding carries the diagnosis instead.
-    On a document that parses fine, a Spectral failure is a real
-    server-side problem and still raises."""
+    On a document that parses fine, a Spectral failure is converted into a
+    synthetic `spectral-failure` finding rather than raised: an exception
+    here would surface to the calling agent as a bare tool error with no
+    guidance, while a structured finding tells it exactly what failed and
+    that the guideline notes (which don't involve Spectral) still stand."""
     parsed, syntax_error, structure_error = parse_oas(payload.oas_content, payload.format)
 
     try:
         findings = run_spectral(payload.oas_content, payload.format)
-    except SpectralError:
+    except SpectralError as e:
         if parsed is not None and not structure_error:
-            raise
-        logger.warning("Spectral failed on unparseable/non-OAS input; using synthetic findings only")
-        findings = []
+            logger.error("Spectral failed on a parseable spec: %s", e)
+            findings = [GuidelineViolation(
+                rule_id="spectral-failure",
+                message=f"The Spectral lint step failed to run on the server: {e}",
+                severity="error", source="spectral-core",
+                rule_explanation=(
+                    "This is a server-side linter failure, not a problem in the spec "
+                    "itself — Spectral/Org-ruleset findings are UNAVAILABLE for this "
+                    "call, so their absence must not be read as compliance. The "
+                    "guideline notes (source=rag) don't involve Spectral and are still "
+                    "reliable. If the message hints at an input issue (e.g. a timeout "
+                    "on a huge document), correct that and call validate_oas again; "
+                    "otherwise report the failure to the user so the server can be "
+                    "looked at — do not silently proceed as if the spec were validated."
+                ),
+            )]
+        else:
+            logger.warning("Spectral failed on unparseable/non-OAS input; using synthetic findings only")
+            findings = []
 
     if syntax_error:
         findings.insert(0, GuidelineViolation(
@@ -204,8 +223,19 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
     org_ruleset = [v for v in spectral if v.source == "custom-ruleset"]
     errors = [v for v in spectral if v.severity == "error"]
     parse_errors = [v for v in spectral if v.rule_id in ("parser", "parse-error", "oas-structure")]
+    lint_failures = [v for v in spectral if v.rule_id == "spectral-failure"]
 
-    if parsed is None or parse_errors:
+    if lint_failures:
+        next_step = ("The Spectral lint step FAILED on the server (see the spectral-failure "
+                     "finding's message for the reason) — no Spectral/Org-ruleset findings are "
+                     "available for this call, and is_valid=false here means 'not validated', "
+                     "not 'invalid'. The guideline notes (source=rag) don't involve Spectral "
+                     "and still apply. If the failure message points at something in the input "
+                     "you can correct (e.g. a timeout on an enormous document), fix that and "
+                     "call validate_oas again; otherwise tell the user plainly that the linter "
+                     "failed server-side and only guideline-note feedback is available — never "
+                     "present the spec as compliant on this result.")
+    elif parsed is None or parse_errors:
         next_step = ("The spec is malformed or not a valid OpenAPI document — the parser/structure "
                      "findings above are the blocking problem, and deeper rule findings stay hidden "
                      "until it parses. The Design Guidelines section (see below) is anticipatory "
