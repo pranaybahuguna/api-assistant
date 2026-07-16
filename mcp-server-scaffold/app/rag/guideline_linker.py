@@ -16,8 +16,16 @@ boost (SCOPE_BOOST), so a response-scoped guideline out-ranks a
 merely-text-similar one on an operation and won't get pulled onto a
 schema. Soft boost, not a hard filter — robust to imperfect scope tags.
 
-Only embeddings are used (via retrieve_with_scores) — no LLM calls, in
-keeping with the server's embeddings+OCR-only constraint.
+Note enrichment: `message` is still the raw guideline excerpt, but
+`rule_explanation` adds context beyond that one line — the LLM tagger's
+`applies_when` / `check_type` rule-card fields (when SCOPE_TAGGER=llm was
+used at ingestion) plus whether the chunk's scope actually matched this
+element (see `_explain`). All of it comes from metadata already computed
+at ingestion; nothing here calls an LLM.
+
+Only embeddings are used (via retrieve_with_scores) at validation time — no
+LLM calls, in keeping with the server's embeddings+OCR-only constraint on
+the live request path.
 
 Cost note: this issues one retrieval per element (an embedding call each),
 so a 15-element spec costs ~15 embedding calls per validate — more than
@@ -68,6 +76,25 @@ def _scope_match(chunk_scopes, element_kind: str) -> bool:
     if "global" in scopes:
         return True
     return bool(scopes & _ELEMENT_SCOPES.get(element_kind, set()))
+
+
+def _explain(doc, element: "OASElement", scope_matched: bool) -> str | None:
+    """Compose extra context for a note beyond the raw quoted excerpt, from
+    metadata the LLM scope tagger already computed at ingestion (SCOPE_TAGGER=llm)
+    — no LLM call here, at validation time. None if the chunk carries none of
+    this (keyword tagger / legacy chunks), so the field is simply omitted."""
+    parts = []
+    applies_when = doc.metadata.get("applies_when")
+    if applies_when:
+        parts.append(f"Applies when: {applies_when}.")
+    check_type = doc.metadata.get("check_type")
+    if check_type:
+        parts.append(f"Check type: {check_type}.")
+    scope = doc.metadata.get("scope")
+    if scope:
+        how = "scope-matched to this" if scope_matched else "no scope match with this"
+        parts.append(f"Guideline scope: {', '.join(scope)} ({how} {element.kind}).")
+    return " ".join(parts) if parts else None
 
 
 @dataclass
@@ -167,7 +194,8 @@ def link_guidelines(spec: dict) -> list[GuidelineViolation]:
             # Phase 2: scope-aware soft boost — a scope-matching guideline
             # gets a lower (better) effective distance, so it out-ranks a
             # merely-text-similar one and is likelier to survive the cutoff.
-            adjusted = score - SCOPE_BOOST if _scope_match(doc.metadata.get("scope"), element.kind) else score
+            scope_matched = _scope_match(doc.metadata.get("scope"), element.kind)
+            adjusted = score - SCOPE_BOOST if scope_matched else score
             if SCORE_THRESHOLD is not None and adjusted > SCORE_THRESHOLD:
                 continue
             key = (element.location, doc.metadata.get("section"), doc.page_content[:80])
@@ -182,6 +210,7 @@ def link_guidelines(spec: dict) -> list[GuidelineViolation]:
                 source="rag",
                 source_document=doc.metadata.get("source"),
                 source_section=doc.metadata.get("section"),
+                rule_explanation=_explain(doc, element, scope_matched),
             )))
             kept += 1
             if kept >= K_PER_ELEMENT:

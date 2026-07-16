@@ -218,9 +218,10 @@ embedding-model + corpus-size dependent and are tuned to the sample doc;
   `scope` plus `applies_when` / `check_type` stored in metadata. An
   ingestion-time (offline, one-shot, cacheable) call; the live request path
   still only calls embeddings. Any LLM failure falls back to the keyword
-  tagger, so ingestion never breaks. (`applies_when` is captured but not
-  yet consumed at validation — evaluating it as a deterministic match
-  signal is the marked next step.)
+  tagger, so ingestion never breaks. `applies_when` / `check_type` are
+  surfaced (not just captured) — see below.  (Using `applies_when` as a
+  deterministic *match* signal, rather than just displayed context, is
+  still the marked next step.)
 
 Either way it's a metadata tag, so switching taggers (or first enabling
 scope at all) means re-ingesting the guidelines index.
@@ -238,6 +239,18 @@ turning the filter off is just "don't run the LLM tagger." Explicit
 lookups are unaffected — `get_guideline_section` searches **everything**,
 so asking "is there anything about Karate?" still returns the reference
 chunk (see below).
+
+**Richer notes, not just a quoted line.** Each note's `message` is still
+the raw guideline excerpt (so it stays quotable verbatim), but
+`rule_explanation` now adds the context that used to be dropped: the LLM
+tagger's `applies_when` / `check_type` for that chunk, and whether its
+`scope` actually matched the OAS element it's anchored to (e.g. *"Applies
+when: when defining collection endpoints. Check type: mechanical.
+Guideline scope: query-param (scope-matched to this operation)."*).
+Composed entirely from metadata computed once at ingestion — no extra LLM
+or embedding call at validation time. Only populated when the LLM tagger
+ran (`SCOPE_TAGGER=llm`); `None` for keyword-tagged/legacy chunks, same as
+it already is for Spectral findings without a ruleset lookup hit.
 
 For **malformed** input (no parse tree to walk), `guideline_context()`
 skips linking and falls back to a single raw-text query over
