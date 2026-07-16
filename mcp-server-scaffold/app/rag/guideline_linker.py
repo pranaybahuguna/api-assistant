@@ -68,6 +68,7 @@ _ELEMENT_SCOPES: dict[str, set[str]] = {
     "info": set(),  # only "global" chunks boost onto info
     "operation": {"operation", "query-param", "header", "request-body", "response", "security"},
     "schema": {"schema", "request-body", "response"},
+    "servers": {"security"},
 }
 
 
@@ -100,7 +101,7 @@ def _explain(doc, element: "OASElement", scope_matched: bool) -> str | None:
 @dataclass
 class OASElement:
     location: str      # e.g. "paths./items.post", "components.schemas.Item", "info"
-    kind: str          # "info" | "operation" | "schema"
+    kind: str          # "info" | "servers" | "operation" | "schema"
     description: str   # natural-language summary used as the retrieval query
 
 
@@ -140,7 +141,7 @@ def _operation_description(path: str, method: str, op: dict) -> str:
 
 def extract_oas_elements(spec: dict) -> list[OASElement]:
     """Break a parsed OAS into the addressable pieces a guideline could
-    apply to. Order: info, then operations, then component schemas."""
+    apply to. Order: info, servers, then operations, then component schemas."""
     elements: list[OASElement] = []
 
     info = spec.get("info") or {}
@@ -149,6 +150,20 @@ def extract_oas_elements(spec: dict) -> list[OASElement]:
             str(info[k]) for k in ("title", "version", "description") if info.get(k)
         )
         elements.append(OASElement("info", "info", desc))
+
+    # The servers block previously had no element at all — no retrieval
+    # query ever looked at it, so a guideline about transport security
+    # (e.g. servers must use https, not http) could never surface via
+    # retrieval no matter what the corpus contains. Naming the scheme
+    # explicitly (not just the raw URL) gives embedding similarity an
+    # actual chance at matching transport-security guidance.
+    servers = spec.get("servers") or []
+    urls = [s.get("url") for s in servers if isinstance(s, dict) and s.get("url")]
+    if urls:
+        schemes = {"https" if str(u).startswith("https://") else "http" for u in urls}
+        desc = ("API server URLs: " + "; ".join(urls) +
+                f". Transport scheme: {', '.join(sorted(schemes))}.")
+        elements.append(OASElement("servers", "servers", desc))
 
     for path, methods in (spec.get("paths") or {}).items():
         if not isinstance(methods, dict):
