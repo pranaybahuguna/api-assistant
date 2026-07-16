@@ -29,7 +29,7 @@ _LOOP_BOUND = ("If findings persist after a couple of edit-and-validate rounds, 
 
 
 def fix_oas(payload: OASInput) -> FixOASResult:
-    parsed, findings, notes, toc = analyze_oas(payload)
+    parsed, findings, notes, toc, guidelines_summary = analyze_oas(payload)
 
     mechanical = [v for v in findings if v.suggested_fix]
     needs_judgment = [v for v in findings if not v.suggested_fix]
@@ -60,6 +60,12 @@ def fix_oas(payload: OASInput) -> FixOASResult:
                      "not rewrite it: " + "; ".join(parts) + ". Then call validate_oas on your "
                      "edited spec to confirm the fixes actually resolved the findings. " + _LOOP_BOUND)
 
+    if guidelines_summary:
+        next_step += (" guidelines_summary is a condensed whole-corpus digest of every design/"
+                      "security rule — worth a pass against it too, since mechanical_fixes/"
+                      "needs_judgment/guideline_notes only cover what this run's retrieval "
+                      "surfaced and can miss a rule that's real but scored too far to include.")
+
     return FixOASResult(
         mechanical_fixes=mechanical,
         needs_judgment=needs_judgment,
@@ -70,4 +76,5 @@ def fix_oas(payload: OASInput) -> FixOASResult:
                 + (" Spec did not parse — fix syntax first; more findings will surface once it parses." if parsed is None else ""),
         next_step=next_step,
         guidelines_toc=toc,
+        guidelines_summary=guidelines_summary,
     )

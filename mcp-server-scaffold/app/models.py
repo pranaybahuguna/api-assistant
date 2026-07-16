@@ -43,6 +43,13 @@ class ValidateOASResult(BaseModel):
     summary: str
     next_step: str       # what the caller should do next, given this result
     guidelines_toc: str  # table of contents of the guidelines corpus — call get_guideline_section for full text
+    # Whole-corpus digest of every design/security rule, built once at
+    # ingestion (SCOPE_TAGGER=llm) — complements the per-element violations/
+    # notes above, which only surface the top-K nearest guideline chunks per
+    # OAS element and can miss a rule that's real but didn't score close
+    # enough. None if it hasn't been generated (SCOPE_TAGGER=keyword, or
+    # nothing ingested yet).
+    guidelines_summary: str | None = None
 
 
 class FixOASResult(BaseModel):
@@ -52,6 +59,7 @@ class FixOASResult(BaseModel):
     summary: str
     next_step: str       # what the caller should do next, given this result
     guidelines_toc: str  # table of contents of the guidelines corpus — call get_guideline_section for full text
+    guidelines_summary: str | None = None  # see ValidateOASResult.guidelines_summary
 
 
 # ---------- get_guideline_section ----------

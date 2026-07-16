@@ -40,7 +40,7 @@ from langchain_core.documents import Document
 
 from app.ingestion.loaders import load_docx, load_pdf, load_oas, load_referential
 from app.ingestion.chunkers import chunk_units
-from app.rag.vector_store import Index, get_vector_store, save_faiss
+from app.rag.vector_store import Index, get_vector_store, save_faiss, save_guideline_summary
 
 _LOADERS = {"docx": load_docx, "pdf": load_pdf, "oas": load_oas, "referential": load_referential}
 _INDEXES = {"guidelines": Index.GUIDELINES, "registry": Index.REGISTRY, "referential": Index.REFERENTIAL}
@@ -152,6 +152,20 @@ def run(source: str, path_args: list[str] | None, index_name: str) -> None:
 
     file_list = ", ".join(p.name for p in paths)
     print(f"Ingested {total} chunk(s) from {len(paths)} file(s) [{file_list}] into '{index_name}'.")
+
+    # One consolidated whole-corpus summary, built once (not per chunk) after
+    # every chunk is tagged, so validate_oas/fix_oas can attach it without any
+    # LLM call at request time. Needs is_rule to separate rule content from
+    # reference material, so only runs when the LLM tagger produced it.
+    if index_name == "guidelines" and os.environ.get("SCOPE_TAGGER", "keyword").lower() == "llm":
+        from app.ingestion.summarize import summarize_guidelines
+        print("Building consolidated guidelines summary (one chat call)...")
+        summary = summarize_guidelines(chunks)
+        if summary:
+            save_guideline_summary(summary)
+            print(f"Saved guidelines summary ({len(summary)} chars).")
+        else:
+            print("Guidelines summary generation failed or produced nothing — skipped.")
 
 
 if __name__ == "__main__":

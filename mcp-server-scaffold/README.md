@@ -257,6 +257,25 @@ skips linking and falls back to a single raw-text query over
 `oas_content[:600]` — degraded but still useful, and `next_step` labels
 the notes as anticipatory context rather than confirmed findings.
 
+**Whole-corpus summary — the deliberate complement to per-element retrieval.**
+Per-element anchoring is precise but inherently partial: it only surfaces the
+top-K nearest guideline chunks per OAS element, so a rule that's real but
+doesn't score close enough (or applies in a way the retrieval query didn't
+capture) can be missed entirely. `app/ingestion/summarize.py` addresses this
+from the other direction — at ingestion (`SCOPE_TAGGER=llm` only, since it
+needs `is_rule` to separate rule content from reference material), ONE chat
+call condenses every rule chunk in the corpus into a single digest, persisted
+as `vector_data/guidelines/summary.txt`. `validate_oas`/`fix_oas` read that
+file straight off disk and attach it as `guidelines_summary` — no LLM call
+on the live request path, same offline/one-shot pattern as the scope tagger
+itself. When present, `next_step` tells the calling agent to cross-check the
+spec against it too, not just the per-element notes/findings.
+Caveat: it's one chat call over the joined rule-chunk text (capped at
+`_MAX_INPUT_CHARS`, ~24k chars) — fine for the sample corpus, but a much
+larger real guidelines doc may need map-reduce summarization (summarize in
+groups, then combine) instead of one pass; not implemented, revisit if
+summaries start looking thin or truncated.
+
 Additionally, every `custom-ruleset` finding carries the actual guideline
 prose of the section it enforces (`guideline_excerpt`), fetched by exact
 section-name match against the finding's `x-guideline-section` — no

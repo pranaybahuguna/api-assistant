@@ -15,7 +15,7 @@ we use for the api_id link between Referential and Registry.
 from typing import Any
 from langchain_core.documents import Document
 
-from app.rag.vector_store import Index, get_vector_store
+from app.rag.vector_store import Index, get_vector_store, load_guideline_summary
 
 
 def retrieve_with_scores(
@@ -55,6 +55,14 @@ def get_section_chunks(section: str, document: str | None = None) -> list[Docume
             continue
         matches.append(d)
     return matches
+
+
+def get_guidelines_summary() -> str | None:
+    """The consolidated whole-corpus guidelines summary (app/ingestion/
+    summarize.py), or None if it hasn't been generated (SCOPE_TAGGER was
+    "keyword" at ingestion, or nothing's ingested yet). No embedding call —
+    reads the persisted text straight from disk, same as build_guidelines_toc."""
+    return load_guideline_summary()
 
 
 def build_guidelines_toc() -> str:

@@ -28,7 +28,7 @@ import yaml
 
 from app.models import OASInput, ValidateOASResult, GuidelineViolation
 from app.integrations.spectral import run_spectral, SpectralError
-from app.rag.retriever import retrieve_guidelines, get_section_chunks, build_guidelines_toc
+from app.rag.retriever import retrieve_guidelines, get_section_chunks, build_guidelines_toc, get_guidelines_summary
 from app.rag.guideline_linker import link_guidelines
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,9 @@ def attach_guideline_excerpts(findings: list[GuidelineViolation]) -> None:
 
 def analyze_oas(payload: OASInput):
     """Everything validate_oas and fix_oas have in common: parse ladder,
-    Spectral run, guideline retrieval, excerpt attachment, TOC.
+    Spectral run, guideline retrieval, excerpt attachment, TOC, and the
+    consolidated guidelines summary (see app/ingestion/summarize.py) — the
+    latter is just a disk read (or None), not a live LLM call.
 
     Spectral sometimes crashes outright (exit 2, internal error) on
     malformed input instead of emitting graceful `parser` findings — when
@@ -182,13 +184,13 @@ def analyze_oas(payload: OASInput):
     attach_guideline_excerpts(findings)
 
     notes = guideline_context(payload.oas_content, parsed)
-    return parsed, findings, notes, build_guidelines_toc()
+    return parsed, findings, notes, build_guidelines_toc(), get_guidelines_summary()
 
 
 # ------------------------------------------------------------ the tool ----
 
 def validate_oas(payload: OASInput) -> ValidateOASResult:
-    parsed, spectral, notes, toc = analyze_oas(payload)
+    parsed, spectral, notes, toc, guidelines_summary = analyze_oas(payload)
 
     spectral_core = [v for v in spectral if v.source == "spectral-core"]
     org_ruleset = [v for v in spectral if v.source == "custom-ruleset"]
@@ -220,6 +222,12 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
                      "manual judgment calls; no fix needed. guidelines_toc lists every guideline "
                      "section — call get_guideline_section if the user asks about one in depth.")
 
+    if guidelines_summary:
+        next_step += (" guidelines_summary is a condensed whole-corpus digest of every design/"
+                      "security rule — cross-check the spec against it too, since the "
+                      "violations/notes above only cover what per-element retrieval surfaced "
+                      "and can miss a rule that's real but scored too far to be included.")
+
     logger.info(
         "validate_oas: api_name=%s oas_len=%d parsed=%s -> is_valid=%s spectral_core=%d "
         "org_ruleset=%d guideline_notes=%d errors=%d",
@@ -236,4 +244,5 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
                 + (" Spec did not parse — deeper findings hidden until syntax is fixed." if parsed is None else ""),
         next_step=next_step,
         guidelines_toc=toc,
+        guidelines_summary=guidelines_summary,
     )

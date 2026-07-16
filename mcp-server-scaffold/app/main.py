@@ -66,6 +66,12 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     to fix or correct the spec. The response's next_step field says exactly
     what to do with this result. Every source="rag" violation carries
     source_document/source_section — cite these when quoting a guideline.
+
+    guidelines_summary (when present) is a condensed digest of every
+    design/security rule in the whole corpus, built once at ingestion —
+    cross-check the spec against it too: violations/notes only cover what
+    per-element retrieval surfaced for THIS spec and can miss a rule that's
+    real but didn't score close enough to be included.
     """
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -88,6 +94,10 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     needs_judgment (a violation exists but the ruleset has no one-line fix
     — use rule_explanation to decide), and guideline_notes (prose context,
     each citing source_document/source_section it came from).
+
+    guidelines_summary (when present) is a condensed whole-corpus digest of
+    every design/security rule — worth a pass against it too, since the
+    fixes/notes above only cover what this run's retrieval surfaced.
     """
     logger.info("tools/call fix_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))

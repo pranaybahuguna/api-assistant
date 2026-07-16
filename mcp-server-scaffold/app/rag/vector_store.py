@@ -41,3 +41,19 @@ def save_faiss(index: Index, store: VectorStore) -> None:
     path = _faiss_path(index)
     path.mkdir(parents=True, exist_ok=True)
     store.save_local(str(path))
+
+
+def save_guideline_summary(text: str) -> None:
+    """Persist the consolidated guidelines summary (app/ingestion/summarize.py)
+    as a plain text file next to the guidelines FAISS index — it's read
+    whole, never embedded/searched, so it doesn't belong in the vector store."""
+    path = _faiss_path(Index.GUIDELINES)
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "summary.txt").write_text(text)
+
+
+def load_guideline_summary() -> str | None:
+    """The persisted summary, or None if ingestion hasn't produced one yet
+    (e.g. SCOPE_TAGGER=keyword was used, or the guidelines index is empty)."""
+    summary_path = _faiss_path(Index.GUIDELINES) / "summary.txt"
+    return summary_path.read_text() if summary_path.exists() else None
