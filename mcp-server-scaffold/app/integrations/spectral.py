@@ -89,11 +89,17 @@ def run_spectral(oas_content: str, fmt: str = "yaml") -> list[GuidelineViolation
     with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as f:
         f.write(oas_content)
         tmp = Path(f.name)
+    # Results go to a FILE (--output), not stdout. Reading stdout broke on
+    # machines where the spectral wrapper/version prints extra text there
+    # (banner, summary line): json.loads saw e.g. "[]<junk>" and died with
+    # "Extra data". A dedicated output file only ever contains the JSON.
+    out_path = tmp.with_suffix(".out.json")
 
     try:
         try:
             result = subprocess.run(
-                [spectral_binary, "lint", str(tmp), "--ruleset", ruleset_path, "--format", "json"],
+                [spectral_binary, "lint", str(tmp), "--ruleset", ruleset_path,
+                 "--format", "json", "--output", str(out_path)],
                 capture_output=True, text=True, timeout=60,
             )
         except FileNotFoundError as e:
@@ -103,10 +109,14 @@ def run_spectral(oas_content: str, fmt: str = "yaml") -> list[GuidelineViolation
         except subprocess.TimeoutExpired as e:
             raise SpectralError("Spectral lint timed out after 60s") from e
 
+        # Prefer the output file; fall back to stdout only if the file never
+        # appeared (e.g. an old spectral without --output support).
+        raw = out_path.read_text() if out_path.exists() else result.stdout
+
         # Spectral's own exit codes: 0 = no error-severity findings, 1 = ran
-        # and found error-severity findings — both are normal outcomes with
-        # JSON on stdout. Anything else with empty stdout means it didn't run.
-        if not result.stdout.strip():
+        # and found error-severity findings — both are normal outcomes.
+        # Anything else with no results means it didn't run.
+        if not raw.strip():
             if result.returncode not in (0, 1):
                 logger.error("Spectral exited %d with no output; stderr: %s",
                              result.returncode, result.stderr.strip())
@@ -115,9 +125,10 @@ def run_spectral(oas_content: str, fmt: str = "yaml") -> list[GuidelineViolation
             return []
 
         try:
-            findings = json.loads(result.stdout)
+            findings = json.loads(raw)
         except json.JSONDecodeError as e:
-            logger.error("Spectral returned non-JSON output: %s", result.stdout[:500])
+            logger.error("Spectral returned non-JSON output (exit %d). head=%r stderr=%r",
+                         result.returncode, raw[:300], result.stderr[:300])
             raise SpectralError("Spectral returned output that could not be parsed as JSON") from e
 
         return [
@@ -133,3 +144,4 @@ def run_spectral(oas_content: str, fmt: str = "yaml") -> list[GuidelineViolation
         ]
     finally:
         tmp.unlink(missing_ok=True)
+        out_path.unlink(missing_ok=True)
