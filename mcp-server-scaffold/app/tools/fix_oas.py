@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 
 _LOOP_BOUND = ("If findings persist after a couple of edit-and-validate rounds, stop and "
                "report the remaining findings to the user instead of iterating further.")
+_NO_COMMENTS = ("Edit oas_content directly — do not add comments (# in YAML, // or /* */ in "
+                "JSON) to explain your edit. In JSON format a comment breaks parsing outright "
+                "(invalid JSON — the next validate_oas call sees a malformed spec), and even in "
+                "YAML it's noise the guidelines never asked for.")
 
 
 def fix_oas(payload: OASInput) -> FixOASResult:
@@ -43,9 +47,9 @@ def fix_oas(payload: OASInput) -> FixOASResult:
     if parsed is None:
         next_step = ("The spec is malformed — it doesn't parse. In ONE edit: fix the syntax "
                      "(see the parser/structure findings for line numbers) AND apply the "
-                     "guideline_notes context, so your edit addresses both. Then call "
-                     "validate_oas on your edited spec — expect new rule findings to surface "
-                     "once the document parses; fix those and validate again. " + _LOOP_BOUND)
+                     "guideline_notes context, so your edit addresses both. " + _NO_COMMENTS +
+                     " Then call validate_oas on your edited spec — expect new rule findings to "
+                     "surface once the document parses; fix those and validate again. " + _LOOP_BOUND)
     elif not findings:
         next_step = "No violations found — spec already complies. No changes needed."
     else:
@@ -57,20 +61,24 @@ def fix_oas(payload: OASInput) -> FixOASResult:
             parts.append("for each needs_judgment entry, use its rule_explanation "
                           "(and guideline_notes for context) to decide the right change")
         next_step = ("You (the calling agent) must edit oas_content yourself — this tool does "
-                     "not rewrite it: " + "; ".join(parts) + ". Then call validate_oas on your "
-                     "edited spec to confirm the fixes actually resolved the findings. " + _LOOP_BOUND)
+                     "not rewrite it: " + "; ".join(parts) + ". " + _NO_COMMENTS + " Then call "
+                     "validate_oas on your edited spec to confirm the fixes actually resolved "
+                     "the findings. " + _LOOP_BOUND)
 
     if guidelines_summary:
         next_step += (" guideline_notes above is the Design Guidelines set (source=rag, "
-                      "recommendations sourced from the design guidelines). Before you finish "
-                      "editing, also check guidelines_summary — a condensed whole-corpus digest "
-                      "of every design/security rule — against every part of oas_content (each "
-                      "path, operation, parameter, request body, response, schema, security "
-                      "scheme): this run's retrieval only surfaces the top-K nearest guideline "
-                      "chunks per element, so guidelines_summary can catch a real rule that was "
-                      "missed — give it equal attention, not a quick glance. But only act on what "
-                      "mechanical_fixes/needs_judgment/guideline_notes above don't already cover — "
-                      "don't fix the same thing twice.")
+                      "recommendations sourced from the design guidelines). It's worth checking "
+                      "guidelines_summary — a condensed whole-corpus digest of every design/"
+                      "security rule — against oas_content too, since this run's retrieval only "
+                      "surfaces the top-K nearest guideline chunks per element. This is advisory, "
+                      "not a new blocking violation: only act on it if you find something "
+                      "concrete that mechanical_fixes/needs_judgment/guideline_notes don't "
+                      "already cover — don't manufacture a fix just to seem thorough, and don't "
+                      "re-raise something you already flagged earlier in this conversation for "
+                      "the same spec. Once mechanical_fixes/needs_judgment are resolved and "
+                      "validate_oas reports is_valid=true, the spec is compliant — a "
+                      "guidelines_summary observation on a later round is a suggestion for the "
+                      "user, not a reason to keep editing and re-validating.")
 
     return FixOASResult(
         mechanical_fixes=mechanical,

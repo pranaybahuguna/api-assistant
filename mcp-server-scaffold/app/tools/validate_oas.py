@@ -237,14 +237,16 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
     if guidelines_summary:
         guidelines_section += (", plus anything you separately find by checking guidelines_summary "
                                 "— a condensed whole-corpus digest of every design/security rule — "
-                                "against every part of this OAS spec (each path, operation, "
-                                "parameter, request body, response, schema, security scheme). "
-                                "Per-element retrieval above only surfaces the top-K nearest "
-                                "guideline chunks per element, so guidelines_summary can catch a "
-                                "real rule that retrieval missed — give it equal attention, not a "
-                                "quick glance. But only add what the notes above don't already "
-                                "cover: do not repeat a rule that's already a violation or already "
-                                "a guideline note in this same section")
+                                "against this OAS spec, since per-element retrieval above only "
+                                "surfaces the top-K nearest guideline chunks per element and can "
+                                "miss something. This is advisory context, not a new violation — "
+                                "is_valid and the errors above are the authoritative compliance "
+                                "signal, so don't treat a guidelines_summary observation as 'still "
+                                "broken.' Concluding there's nothing further to add is the normal, "
+                                "expected outcome, not a sign you didn't look hard enough — don't "
+                                "manufacture a finding just to seem thorough, and don't re-raise "
+                                "something you already flagged earlier in this conversation for "
+                                "the same spec. Only add what the notes above don't already cover")
     next_step += " " + guidelines_section + "."
 
     logger.info(

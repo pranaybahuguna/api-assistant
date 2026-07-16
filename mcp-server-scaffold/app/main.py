@@ -72,12 +72,16 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     guideline.
 
     guidelines_summary (when present) is a condensed digest of every
-    design/security rule in the whole corpus, built once at ingestion.
-    Give it the same attention as violations/notes — per-element retrieval
-    only surfaces the top-K nearest guideline chunks per element and can
-    miss a rule that's real but didn't score close enough. It feeds into
-    the Design Guidelines section alongside the source=rag notes; next_step
-    explains how to combine them without duplicating anything.
+    design/security rule in the whole corpus, built once at ingestion. It's
+    worth checking against the spec since per-element retrieval only
+    surfaces the top-K nearest guideline chunks per element and can miss
+    something — but it's advisory context, not a new violation: is_valid
+    and the errors above are the authoritative compliance signal. Finding
+    nothing further from it is the normal outcome, not a failure to look
+    hard enough — don't manufacture an observation just to seem thorough,
+    and don't re-raise the same one across multiple validate_oas calls in
+    one conversation. next_step explains how to combine it with the
+    source=rag notes without duplicating anything.
     """
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -95,18 +99,24 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
 
     Does NOT rewrite the spec — YOU (the calling agent) must edit
     oas_content yourself using this plan, then call validate_oas again on
-    your edited version to confirm. Returns mechanical_fixes (each has a
-    concrete suggested_fix from the ruleset — apply as stated),
-    needs_judgment (a violation exists but the ruleset has no one-line fix
-    — use rule_explanation to decide), and guideline_notes (recommendations
-    sourced from the design guidelines, each citing source_document/
-    source_section it came from).
+    your edited version to confirm. Edit the content directly — do not add
+    comments (# in YAML, // or /* */ in JSON) to explain your edit; in
+    JSON that's invalid syntax and breaks the next validate_oas parse
+    outright, and even in YAML it's noise the guidelines never asked for.
+    Returns mechanical_fixes (each has a concrete suggested_fix from the
+    ruleset — apply as stated), needs_judgment (a violation exists but the
+    ruleset has no one-line fix — use rule_explanation to decide), and
+    guideline_notes (recommendations sourced from the design guidelines,
+    each citing source_document/source_section it came from).
 
     guidelines_summary (when present) is a condensed whole-corpus digest of
-    every design/security rule. Give it the same attention as
-    mechanical_fixes/needs_judgment/guideline_notes — this run's retrieval
-    only surfaces the top-K nearest guideline chunks per element and can
-    miss a rule that's real but didn't score close enough. next_step
+    every design/security rule. Worth checking against oas_content since
+    this run's retrieval only surfaces the top-K nearest guideline chunks
+    per element — but it's advisory, not a new blocking violation. Once
+    mechanical_fixes/needs_judgment are resolved and validate_oas reports
+    is_valid=true, the spec is compliant; don't manufacture a fix from
+    guidelines_summary just to seem thorough, and don't re-raise the same
+    observation across multiple calls in one conversation. next_step
     explains how to fold what it surfaces into guideline_notes without
     duplicating anything already covered above.
     """
