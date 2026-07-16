@@ -30,6 +30,7 @@ Usage:
   python -m app.ingestion.pipeline --source docx --index guidelines --path ./resources/guidelines/
 """
 import argparse
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -104,10 +105,21 @@ def run(source: str, path_args: list[str] | None, index_name: str) -> None:
     # Phase 2: tag guideline chunks with their scope (what OAS construct the
     # rule is about), so the linker can prefer scope-matching chunks. Only
     # the guidelines index — registry/referential chunks aren't guidelines.
+    # SCOPE_TAGGER=llm uses a chat model per chunk (richer rule-card, falls
+    # back to keywords on failure); default "keyword" is deterministic/free.
     if index_name == "guidelines":
-        from app.ingestion.scope_rules import infer_scopes
-        for c in chunks:
-            c.metadata["scope"] = infer_scopes(c.metadata.get("section"), c.text)
+        tagger = os.environ.get("SCOPE_TAGGER", "keyword").lower()
+        if tagger == "llm":
+            from app.ingestion.llm_scope import llm_infer_scopes
+            print(f"Scope tagger: LLM ({os.environ.get('CHAT_MODEL', os.environ.get('OCR_MODEL', '?'))}) — one call per chunk")
+            for c in chunks:
+                scope, extra = llm_infer_scopes(c.metadata.get("section"), c.text)
+                c.metadata["scope"] = scope
+                c.metadata.update({k: v for k, v in extra.items() if v})  # applies_when, check_type
+        else:
+            from app.ingestion.scope_rules import infer_scopes
+            for c in chunks:
+                c.metadata["scope"] = infer_scopes(c.metadata.get("section"), c.text)
 
     docs = [Document(page_content=c.text, metadata=c.metadata) for c in chunks]
 
