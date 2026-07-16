@@ -30,6 +30,11 @@ _NO_COMMENTS = ("Edit oas_content directly — do not add comments (# in YAML, /
                 "JSON) to explain your edit. In JSON format a comment breaks parsing outright "
                 "(invalid JSON — the next validate_oas call sees a malformed spec), and even in "
                 "YAML it's noise the guidelines never asked for.")
+_SHOW_RESULT = ("This plan is input for you to act on, not the final answer — do not paste it, "
+                "list it, or otherwise present these findings to the user as steps to follow; "
+                "the user asked for the fix, not instructions. Your reply must contain the "
+                "actual corrected oas_content in full, plus a short summary of what changed. If "
+                "you have not produced the edited spec text, you are not done.")
 
 
 def fix_oas(payload: OASInput) -> FixOASResult:
@@ -49,7 +54,8 @@ def fix_oas(payload: OASInput) -> FixOASResult:
                      "(see the parser/structure findings for line numbers) AND apply the "
                      "guideline_notes context, so your edit addresses both. " + _NO_COMMENTS +
                      " Then call validate_oas on your edited spec — expect new rule findings to "
-                     "surface once the document parses; fix those and validate again. " + _LOOP_BOUND)
+                     "surface once the document parses; fix those and validate again. " +
+                     _LOOP_BOUND + " " + _SHOW_RESULT)
     elif not findings:
         next_step = "No violations found — spec already complies. No changes needed."
     else:
@@ -63,7 +69,7 @@ def fix_oas(payload: OASInput) -> FixOASResult:
         next_step = ("You (the calling agent) must edit oas_content yourself — this tool does "
                      "not rewrite it: " + "; ".join(parts) + ". " + _NO_COMMENTS + " Then call "
                      "validate_oas on your edited spec to confirm the fixes actually resolved "
-                     "the findings. " + _LOOP_BOUND)
+                     "the findings. " + _LOOP_BOUND + " " + _SHOW_RESULT)
 
     if guidelines_summary:
         next_step += (" guideline_notes above is the Design Guidelines set (source=rag, "

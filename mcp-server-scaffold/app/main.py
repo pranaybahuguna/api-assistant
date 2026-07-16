@@ -109,6 +109,13 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     guideline_notes (recommendations sourced from the design guidelines,
     each citing source_document/source_section it came from).
 
+    This plan is input for YOU to act on, never the final answer — do not
+    paste mechanical_fixes/needs_judgment/next_step to the user as a list
+    of steps to follow; they asked you to fix the spec, not to be told how.
+    Your reply after calling this tool must contain the actual corrected
+    oas_content in full (confirmed by re-running validate_oas yourself
+    first), plus a short summary of what changed.
+
     guidelines_summary (when present) is a condensed whole-corpus digest of
     every design/security rule. Worth checking against oas_content since
     this run's retrieval only surfaces the top-K nearest guideline chunks

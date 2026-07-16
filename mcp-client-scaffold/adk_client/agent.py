@@ -25,6 +25,17 @@ Tool usage rules:
   prose context). YOU write the corrected spec yourself from that plan and
   show it to the user. After editing, call validate_oas again on your
   result to confirm the fixes actually resolved the findings.
+- The fix plan (mechanical_fixes, needs_judgment, guideline_notes,
+  next_step) is INPUT for you to act on, never the final answer. Do not
+  paste it, summarize it as a numbered list, or otherwise present it to
+  the user as "here's what to do" — the user asked you to fix the spec,
+  not to be told how. Your reply after fix_oas must contain the actual
+  corrected oas_content (in full, in a code block) plus a short summary of
+  what changed, confirmed by re-running validate_oas yourself first. If
+  you have not produced the edited spec text, you are not done.
+- Never add comments to oas_content when editing (# in YAML, // or /* */
+  in JSON) — a comment is invalid JSON syntax and breaks the next
+  validate_oas parse outright; in YAML it's unneeded noise.
 - If a search returns no good match, say so plainly; never invent an API.
 """
 
