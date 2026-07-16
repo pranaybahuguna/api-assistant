@@ -467,7 +467,7 @@ settings object duplicating these across `.env` and Python.
 | `LLM_BASE_URL` | internal gateway URL | Chat model base URL (OpenAI-compatible) |
 | `LLM_API_KEY` | `changeme` | Bearer key for chat and for the embeddings gateway |
 | `OCR_MODEL` | `internal-llm` | Vision model for docx image OCR (ingestion) |
-| `CHAT_MODEL` | falls back to `OCR_MODEL` | Chat model for the optional LLM scope tagger (ingestion, when `SCOPE_TAGGER=llm`) |
+| `CHAT_MODEL` | `internal-llm` | Chat model for the optional LLM scope tagger (ingestion, when `SCOPE_TAGGER=llm`) |
 | `SCOPE_TAGGER` | `keyword` | Guideline scope tagging: `keyword` (deterministic, free) or `llm` (one `CHAT_MODEL` call per guideline chunk). Ingestion-time only; affects `--index guidelines` |
 | `INGEST_BATCH_SIZE` | `25` | Chunks are tagged, embedded, added, and persisted this many at a time (not all at once) — crash-resilient, bounds in-flight LLM/embedding calls |
 | `EMBEDDING_ENDPOINT_URL` | — | Required — the custom embeddings gateway URL |

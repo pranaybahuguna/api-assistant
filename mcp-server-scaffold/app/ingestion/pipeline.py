@@ -133,7 +133,7 @@ def run(source: str, path_args: list[str] | None, index_name: str) -> None:
     store = get_vector_store(index)  # held across batches; added to, saved each batch
 
     if index_name == "guidelines" and os.environ.get("SCOPE_TAGGER", "keyword").lower() == "llm":
-        print(f"Scope tagger: LLM ({os.environ.get('CHAT_MODEL', os.environ.get('OCR_MODEL', '?'))}) "
+        print(f"Scope tagger: LLM ({os.environ.get('CHAT_MODEL', 'internal-llm')}) "
               f"— one call per chunk, in batches of {batch_size}")
 
     done = 0
