@@ -183,17 +183,50 @@ This is how `validate_oas`/`fix_oas` findings (across all three sources)
 and both search tools' hits can be cited back to a specific document (and
 section, where applicable) rather than presented as unsourced text.
 
-### How guideline retrieval targets the spec
+### How guideline retrieval targets the spec (guideline linking)
 
-`guideline_context()` (`app/tools/validate_oas.py`) derives its retrieval
-queries from the **parsed spec's actual characteristics** — `derive_facts()`
-walks the document and emits one natural-language fact per observed trait
-("POST endpoints creating resources and idempotency requirements", "uses
-skip/take pagination", "no security requirements declared", ...), runs one
-small retrieval per fact, then merges/dedupes and caps the result. Every
-returned note is present because of something real in THIS spec, not
-because it happened to rank near a blob of YAML. For **malformed** input
-(no parse tree to walk) it falls back to a single raw-text query over
+For a parsed spec, `guideline_context()` (`app/tools/validate_oas.py`)
+delegates to `link_guidelines()` (`app/rag/guideline_linker.py`), which
+links guidelines to the specific OAS elements they apply to, in two layers:
+
+**Phase 1 — structural anchoring.** Instead of one query about the whole
+spec, `extract_oas_elements()` decomposes the parsed spec into addressable
+elements — the `info` block, each `(path, method)` operation, each
+component schema — and builds a natural-language description of each from
+its actual fields (method, path, summary, parameter names + `in`,
+request-body fields, response codes). It retrieves guidelines **per
+element** and anchors each hit via the finding's `path` (e.g.
+`paths./orders.post`), so a note reads "this guideline applies *here*"
+instead of floating in a flat list. Embeddings-only — no LLM at query time.
+
+**Phase 2 — scope awareness.** Each guideline chunk is tagged at ingestion
+with the OAS construct(s) it concerns (`response`, `header`, `security`,
+`schema`, …) and stored in `metadata["scope"]`. When linking, a hit whose
+scope matches the element's kind gets a soft distance boost (`SCOPE_BOOST`),
+so a response-scoped guideline out-ranks a merely-text-similar one on an
+operation and won't get pulled onto a schema. `"global"` scopes are a
+wildcard matching every element. Soft boost, not a hard filter — robust to
+imperfect tags. A `SCORE_THRESHOLD` drops the weak tail. Both constants are
+embedding-model + corpus-size dependent and are tuned to the sample doc;
+**re-check them on your real corpus.**
+
+**Scope tagging — keyword (default) or LLM.** Set by `SCOPE_TAGGER`:
+- `keyword` (default): deterministic heading + content keyword maps in
+  `app/ingestion/scope_rules.py`. Free, no LLM.
+- `llm`: one `CHAT_MODEL` call per guideline chunk
+  (`app/ingestion/llm_scope.py`) extracts a richer rule-card — cleaner
+  `scope` plus `applies_when` / `check_type` stored in metadata. An
+  ingestion-time (offline, one-shot, cacheable) call; the live request path
+  still only calls embeddings. Any LLM failure falls back to the keyword
+  tagger, so ingestion never breaks. (`applies_when` is captured but not
+  yet consumed at validation — evaluating it as a deterministic match
+  signal is the marked next step.)
+
+Either way it's a metadata tag, so switching taggers (or first enabling
+scope at all) means re-ingesting the guidelines index.
+
+For **malformed** input (no parse tree to walk), `guideline_context()`
+skips linking and falls back to a single raw-text query over
 `oas_content[:600]` — degraded but still useful, and `next_step` labels
 the notes as anticipatory context rather than confirmed findings.
 
@@ -328,9 +361,11 @@ Images embedded in ingested `.docx` files are read via an OpenAI-compatible
 vision call (`app/ingestion/loaders.py`'s `_ocr_image`, using
 `app/integrations/internal_llm.py`'s `get_ocr_model()`) — the image is
 base64-encoded into a `data:` URL and sent alongside a fixed OCR prompt —
-not a local `tesseract` install. This is the **only** LLM-style call the
-server makes beyond embeddings; `OCR_MODEL` selects which model on the
-gateway to use for it. If the vision call fails (model doesn't support
+not a local `tesseract` install. This (and the optional LLM scope tagger,
+`SCOPE_TAGGER=llm`) are the only LLM-style calls anywhere, and both happen
+at **ingestion** — the live request path (validate/fix/search) still only
+ever calls embeddings. `OCR_MODEL` selects which model on the gateway to
+use for OCR. If the vision call fails (model doesn't support
 images, network error), ingestion continues and just skips that image's
 text with a logged warning, so a missing OCR model never blocks ingestion
 of the rest of the document.
@@ -431,7 +466,9 @@ settings object duplicating these across `.env` and Python.
 | `FAISS_DIR` | `./vector_data` | Where FAISS index files are saved |
 | `LLM_BASE_URL` | internal gateway URL | Chat model base URL (OpenAI-compatible) |
 | `LLM_API_KEY` | `changeme` | Bearer key for chat and for the embeddings gateway |
-| `OCR_MODEL` | `internal-llm` | Vision model used for docx image OCR — the only LLM-style call this server makes beyond embeddings |
+| `OCR_MODEL` | `internal-llm` | Vision model for docx image OCR (ingestion) |
+| `CHAT_MODEL` | falls back to `OCR_MODEL` | Chat model for the optional LLM scope tagger (ingestion, when `SCOPE_TAGGER=llm`) |
+| `SCOPE_TAGGER` | `keyword` | Guideline scope tagging: `keyword` (deterministic, free) or `llm` (one `CHAT_MODEL` call per guideline chunk). Ingestion-time only; affects `--index guidelines` |
 | `EMBEDDING_ENDPOINT_URL` | — | Required — the custom embeddings gateway URL |
 | `EMBEDDING_MODEL` | `text-embedding-3-large` | Model name sent to the embeddings gateway |
 | `EMBEDDING_CERT_PATH` | — | Optional custom CA bundle for the embeddings gateway |
