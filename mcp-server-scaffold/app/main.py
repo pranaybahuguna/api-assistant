@@ -65,16 +65,19 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     reformatted. If the user only asked you to validate, this report IS the
     final answer — do not proactively call fix_oas unless the user asks you
     to fix or correct the spec. The response's next_step field says exactly
-    what to do with this result. Every source="rag" violation carries
-    source_document/source_section — cite these when quoting a guideline.
+    what to do with this result — present it as three sections: Spectral
+    lint findings (source=spectral-core), Custom Ruleset findings
+    (source=custom-ruleset), and Design Guidelines. Every source="rag" violation
+    carries source_document/source_section — cite these when quoting a
+    guideline.
 
     guidelines_summary (when present) is a condensed digest of every
     design/security rule in the whole corpus, built once at ingestion.
-    Checking the spec against it is MANDATORY, not optional context — give
-    it the same rigor as violations/notes: per-element retrieval only
-    surfaces the top-K nearest guideline chunks per element and can miss a
-    rule that's real but didn't score close enough. The response's
-    next_step spells this out as the required final step.
+    Give it the same attention as violations/notes — per-element retrieval
+    only surfaces the top-K nearest guideline chunks per element and can
+    miss a rule that's real but didn't score close enough. It feeds into
+    the Design Guidelines section alongside the source=rag notes; next_step
+    explains how to combine them without duplicating anything.
     """
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -100,12 +103,12 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     source_section it came from).
 
     guidelines_summary (when present) is a condensed whole-corpus digest of
-    every design/security rule. Checking your edit against it is MANDATORY,
-    not optional context — give it the same rigor as mechanical_fixes/
-    needs_judgment/guideline_notes: this run's retrieval only surfaces the
-    top-K nearest guideline chunks per element and can miss a rule that's
-    real but didn't score close enough. next_step spells this out as the
-    required final step.
+    every design/security rule. Give it the same attention as
+    mechanical_fixes/needs_judgment/guideline_notes — this run's retrieval
+    only surfaces the top-K nearest guideline chunks per element and can
+    miss a rule that's real but didn't score close enough. next_step
+    explains how to fold what it surfaces into guideline_notes without
+    duplicating anything already covered above.
     """
     logger.info("tools/call fix_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))

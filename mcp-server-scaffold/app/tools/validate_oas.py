@@ -200,43 +200,44 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
     if parsed is None or parse_errors:
         next_step = ("The spec is malformed or not a valid OpenAPI document — the parser/structure "
                      "findings above are the blocking problem, and deeper rule findings stay hidden "
-                     "until it parses. The guideline notes (source=rag) are recommendations sourced "
-                     "from the design guidelines. If the user only asked to validate, report this "
-                     "as-is. If the user asked for a fix: correct the syntax AND apply the guideline "
-                     "notes in the same edit, then call validate_oas again — expect new findings to "
-                     "surface once the document parses.")
+                     "until it parses. The Design Guidelines section (see below) is anticipatory "
+                     "context, not confirmed findings. If the user only asked to validate, report "
+                     "this as-is. If the user asked for a fix: correct the syntax AND apply that "
+                     "context in the same edit, then call validate_oas again — expect new findings "
+                     "to surface once the document parses.")
     elif errors:
         next_step = ("This validation report is the answer if the user only asked to validate — "
-                     "present these findings grouped into three sections: Spectral lint findings "
-                     "(source=spectral-core, generic OpenAPI best practices), Custom Ruleset findings "
-                     "(source=custom-ruleset, Org-specific mechanically-enforced rules, each carrying "
-                     "the guideline text it enforces in guideline_excerpt), and Guideline notes "
-                     "(source=rag, recommendations sourced from the design guidelines) — don't merge "
-                     "them into one flat list. Only call fix_oas if the user separately asks you to "
-                     "fix or correct the spec.")
+                     "present it as exactly three sections, don't merge them into one flat list: "
+                     "Spectral lint findings (source=spectral-core, generic OpenAPI best "
+                     "practices), Custom Ruleset findings (source=custom-ruleset, Org-specific "
+                     "mechanically-enforced rules, each carrying the guideline text it enforces in "
+                     "guideline_excerpt), and Design Guidelines (see below). Only call fix_oas if the "
+                     "user separately asks you to fix or correct the spec.")
     elif spectral:
-        next_step = ("No blocking errors, but there are warnings above — report them (grouped by "
-                     "source: spectral-core vs custom-ruleset) and the guideline notes (source=rag, "
-                     "recommendations sourced from the design guidelines) to the user. Only pursue "
+        next_step = ("No blocking errors, but there are warnings above — report them as three "
+                     "sections (Spectral lint findings source=spectral-core, Custom Ruleset findings "
+                     "source=custom-ruleset, and Design Guidelines — see below) to the user. Only pursue "
                      "a fix if the user asks for one.")
     else:
-        next_step = ("Spec is fully compliant. Review the guideline notes (source=rag) — "
-                     "recommendations sourced from the design guidelines — and apply any that are "
-                     "relevant; no fix needed. guidelines_toc lists every guideline section — call "
+        next_step = ("Spec is fully compliant against Spectral and the Custom Ruleset. Present the "
+                     "Design Guidelines section (see below) — recommendations, not violations; no fix "
+                     "needed. guidelines_toc lists every guideline section — call "
                      "get_guideline_section if the user asks about one in depth.")
 
+    guidelines_section = ("Design Guidelines is the guideline notes above (source=rag, recommendations "
+                           "sourced from the design guidelines)")
     if guidelines_summary:
-        next_step += (" MANDATORY FINAL STEP, do not skip it: guidelines_summary is a condensed "
-                      "digest of every design/security rule in the whole corpus, and it deserves "
-                      "the same rigor as the violations/notes above — not a quick glance, not "
-                      "optional context. Go through this OAS spec element by element (every "
-                      "path, operation, parameter, request body, response, schema, and security "
-                      "scheme) and check each one against guidelines_summary. Per-element "
-                      "retrieval above is necessarily incomplete — only the top-K nearest "
-                      "guideline chunks per element are surfaced — so a real rule can be absent "
-                      "from violations/notes even though guidelines_summary covers it. Report "
-                      "anything this surfaces exactly like the findings above, citing the "
-                      "relevant part of guidelines_summary.")
+        guidelines_section += (", plus anything you separately find by checking guidelines_summary "
+                                "— a condensed whole-corpus digest of every design/security rule — "
+                                "against every part of this OAS spec (each path, operation, "
+                                "parameter, request body, response, schema, security scheme). "
+                                "Per-element retrieval above only surfaces the top-K nearest "
+                                "guideline chunks per element, so guidelines_summary can catch a "
+                                "real rule that retrieval missed — give it equal attention, not a "
+                                "quick glance. But only add what the notes above don't already "
+                                "cover: do not repeat a rule that's already a violation or already "
+                                "a guideline note in this same section")
+    next_step += " " + guidelines_section + "."
 
     logger.info(
         "validate_oas: api_name=%s oas_len=%d parsed=%s -> is_valid=%s spectral_core=%d "

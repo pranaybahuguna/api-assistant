@@ -61,16 +61,16 @@ def fix_oas(payload: OASInput) -> FixOASResult:
                      "edited spec to confirm the fixes actually resolved the findings. " + _LOOP_BOUND)
 
     if guidelines_summary:
-        next_step += (" MANDATORY FINAL STEP, do not skip it: guidelines_summary is a condensed "
-                      "digest of every design/security rule in the whole corpus, and it deserves "
-                      "the same rigor as mechanical_fixes/needs_judgment/guideline_notes above — "
-                      "not a quick glance, not optional context. Before you finish editing, go "
-                      "through oas_content element by element (every path, operation, parameter, "
-                      "request body, response, schema, and security scheme) and check each one "
-                      "against guidelines_summary. This run's retrieval is necessarily incomplete "
-                      "— only the top-K nearest guideline chunks per element are surfaced — so a "
-                      "real rule can be absent from the findings above even though "
-                      "guidelines_summary covers it. Apply any fix this surfaces too.")
+        next_step += (" guideline_notes above is the Design Guidelines set (source=rag, "
+                      "recommendations sourced from the design guidelines). Before you finish "
+                      "editing, also check guidelines_summary — a condensed whole-corpus digest "
+                      "of every design/security rule — against every part of oas_content (each "
+                      "path, operation, parameter, request body, response, schema, security "
+                      "scheme): this run's retrieval only surfaces the top-K nearest guideline "
+                      "chunks per element, so guidelines_summary can catch a real rule that was "
+                      "missed — give it equal attention, not a quick glance. But only act on what "
+                      "mechanical_fixes/needs_judgment/guideline_notes above don't already cover — "
+                      "don't fix the same thing twice.")
 
     return FixOASResult(
         mechanical_fixes=mechanical,
