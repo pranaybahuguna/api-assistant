@@ -236,13 +236,30 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
                      "failed server-side and only guideline-note feedback is available — never "
                      "present the spec as compliant on this result.")
     elif parsed is None or parse_errors:
-        next_step = ("The spec is malformed or not a valid OpenAPI document — the parser/structure "
-                     "findings above are the blocking problem, and deeper rule findings stay hidden "
-                     "until it parses. The Design Guidelines section (see below) is anticipatory "
-                     "context, not confirmed findings. If the user only asked to validate, report "
-                     "this as-is. If the user asked for a fix: correct the syntax AND apply that "
-                     "context in the same edit, then call validate_oas again — expect new findings "
-                     "to surface once the document parses.")
+        # The server's own parse ladder is stricter than Spectral's parser:
+        # a document can fail here yet still be lintable by Spectral, in
+        # which case REAL rule findings coexist with the parse-error finding
+        # — the wording must not let the agent collapse all of that into
+        # just "the spec is invalid".
+        rule_findings = [v for v in spectral if v not in parse_errors]
+        if rule_findings:
+            next_step = ("The document failed the server's strict parser (see the parse-error/"
+                         "structure finding), BUT Spectral still managed to lint it — the other "
+                         f"{len(rule_findings)} finding(s) above are REAL, confirmed rule "
+                         "violations, not anticipatory guesses. Do NOT reply with just 'the spec "
+                         "is invalid': present the parse problem AND every finding (grouped by "
+                         "source: spectral-core, custom-ruleset) AND the Design Guidelines section (see "
+                         "below). If the user asked for a fix: correct the parse problem and the "
+                         "findings in one edit, then call validate_oas again.")
+        else:
+            next_step = ("The spec is malformed or not a valid OpenAPI document — the parser/"
+                         "structure findings above are the blocking problem, and deeper rule "
+                         "findings stay hidden until it parses. The Design Guidelines section (see "
+                         "below) is anticipatory context retrieved from the raw text. Do NOT "
+                         "reply with just 'the spec is invalid': present the parse problem AND "
+                         "the guideline notes. If the user asked for a fix: correct the syntax "
+                         "AND apply that context in the same edit, then call validate_oas again "
+                         "— expect new findings to surface once the document parses.")
     elif errors:
         next_step = ("This validation report is the answer if the user only asked to validate — "
                      "present it as exactly three sections, don't merge them into one flat list: "

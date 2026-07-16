@@ -60,9 +60,12 @@ def fix_oas(payload: OASInput) -> FixOASResult:
                      "fix that and retry; otherwise tell the user the linter failed "
                      "server-side and only guideline-note feedback is available.")
     elif parsed is None:
-        next_step = ("The spec is malformed — it doesn't parse. In ONE edit: fix the syntax "
-                     "(see the parser/structure findings for line numbers) AND apply the "
-                     "guideline_notes context, so your edit addresses both. " + _NO_COMMENTS +
+        next_step = ("The spec failed the server's parser. In ONE edit: fix the syntax (see the "
+                     "parser/structure findings for line numbers), apply any OTHER "
+                     "mechanical_fixes/needs_judgment entries listed (Spectral's parser is more "
+                     "tolerant than the server's, so those can be real confirmed findings, not "
+                     "guesses), AND apply the guideline_notes context — one edit covering all of "
+                     "it. " + _NO_COMMENTS +
                      " Then call validate_oas on your edited spec — expect new rule findings to "
                      "surface once the document parses; fix those and validate again. " +
                      _LOOP_BOUND + " " + _SHOW_RESULT)
