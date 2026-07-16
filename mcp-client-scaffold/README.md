@@ -20,27 +20,6 @@ python -m adk_client.run_cli
 Try: "Which API can I use to store client documents, and show me its endpoints."
 The agent should chain search_api_referential -> search_api_registry(api_id=...).
 
-## Large specs: the LAST_SPEC placeholder
-
-In function calling, the model must generate every tool argument token by
-token — so passing a 400-line OAS to `validate_oas`/`fix_oas` means the
-LLM retypes the whole document per call. That's slow, corrupts easily, and
-gets truncated by the gateway's max-output-tokens limit (surfacing as "the
-document is too large to be passed").
-
-This client fixes that with ADK callbacks (`adk_client/callbacks.py`):
-whenever an OAS document appears in the conversation — pasted by the user
-or emitted by the model as a corrected spec — it's stashed in session
-state. The `INSTRUCTION` tells the model to pass `oas_content: LAST_SPEC`
-instead of retyping; `before_tool_callback` substitutes the real, byte-exact
-text before the MCP call leaves the client. The server always receives the
-full spec and needs no changes. (A generic MCP client without these
-callbacks just passes full content as before — the placeholder is purely
-this client's convenience, which is why the server never mentions it.)
-
-If the model's own replies (e.g. a long corrected spec) get cut off, raise
-the completion budget with `INTERNAL_LLM_MAX_TOKENS` in `.env`.
-
 ## The tool-chaining workflow lives on the server, not here
 
 `adk_client/agent.py`'s `INSTRUCTION` reinforces the tool-usage order, but
