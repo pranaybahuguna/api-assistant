@@ -92,6 +92,26 @@ def _resolve_paths(source: str, path_args: list[str] | None, index_name: str) ->
     return resolved
 
 
+def _tag_scopes(chunks, index_name: str) -> None:
+    """Phase 2: tag guideline chunks with their scope (what OAS construct
+    the rule is about), so the linker can prefer scope-matching chunks. Only
+    the guidelines index — registry/referential chunks aren't guidelines.
+    SCOPE_TAGGER=llm uses a chat model per chunk (richer rule-card, falls
+    back to keywords on failure); default "keyword" is deterministic/free."""
+    if index_name != "guidelines":
+        return
+    if os.environ.get("SCOPE_TAGGER", "keyword").lower() == "llm":
+        from app.ingestion.llm_scope import llm_infer_scopes
+        for c in chunks:
+            scope, extra = llm_infer_scopes(c.metadata.get("section"), c.text)
+            c.metadata["scope"] = scope
+            c.metadata.update({k: v for k, v in extra.items() if v})  # applies_when, check_type
+    else:
+        from app.ingestion.scope_rules import infer_scopes
+        for c in chunks:
+            c.metadata["scope"] = infer_scopes(c.metadata.get("section"), c.text)
+
+
 def run(source: str, path_args: list[str] | None, index_name: str) -> None:
     paths = _resolve_paths(source, path_args, index_name)
     loader = _LOADERS[source]
@@ -101,35 +121,33 @@ def run(source: str, path_args: list[str] | None, index_name: str) -> None:
         units.extend(loader(path))
 
     chunks = chunk_units(units)
+    total = len(chunks)
 
-    # Phase 2: tag guideline chunks with their scope (what OAS construct the
-    # rule is about), so the linker can prefer scope-matching chunks. Only
-    # the guidelines index — registry/referential chunks aren't guidelines.
-    # SCOPE_TAGGER=llm uses a chat model per chunk (richer rule-card, falls
-    # back to keywords on failure); default "keyword" is deterministic/free.
-    if index_name == "guidelines":
-        tagger = os.environ.get("SCOPE_TAGGER", "keyword").lower()
-        if tagger == "llm":
-            from app.ingestion.llm_scope import llm_infer_scopes
-            print(f"Scope tagger: LLM ({os.environ.get('CHAT_MODEL', os.environ.get('OCR_MODEL', '?'))}) — one call per chunk")
-            for c in chunks:
-                scope, extra = llm_infer_scopes(c.metadata.get("section"), c.text)
-                c.metadata["scope"] = scope
-                c.metadata.update({k: v for k, v in extra.items() if v})  # applies_when, check_type
-        else:
-            from app.ingestion.scope_rules import infer_scopes
-            for c in chunks:
-                c.metadata["scope"] = infer_scopes(c.metadata.get("section"), c.text)
-
-    docs = [Document(page_content=c.text, metadata=c.metadata) for c in chunks]
+    # Process in batches so nothing is done "all at once": each batch is
+    # scope-tagged (per-chunk LLM/keyword calls), embedded, added, and
+    # PERSISTED before the next batch. A failure part-way keeps every
+    # already-saved batch, and the in-flight LLM/embedding calls stay bounded.
+    batch_size = max(1, int(os.environ.get("INGEST_BATCH_SIZE", "25")))
 
     index = _INDEXES[index_name]
-    store = get_vector_store(index)
-    store.add_documents(docs)
-    save_faiss(index, store)  # persist to ./vector_data/<index>/
+    store = get_vector_store(index)  # held across batches; added to, saved each batch
+
+    if index_name == "guidelines" and os.environ.get("SCOPE_TAGGER", "keyword").lower() == "llm":
+        print(f"Scope tagger: LLM ({os.environ.get('CHAT_MODEL', os.environ.get('OCR_MODEL', '?'))}) "
+              f"— one call per chunk, in batches of {batch_size}")
+
+    done = 0
+    for start in range(0, total, batch_size):
+        batch = chunks[start:start + batch_size]
+        _tag_scopes(batch, index_name)
+        store.add_documents([Document(page_content=c.text, metadata=c.metadata) for c in batch])
+        save_faiss(index, store)  # persist after each batch (crash-resilient)
+        done += len(batch)
+        if total > batch_size:
+            print(f"  ...ingested {done}/{total} chunk(s)")
 
     file_list = ", ".join(p.name for p in paths)
-    print(f"Ingested {len(docs)} chunk(s) from {len(paths)} file(s) [{file_list}] into '{index_name}'.")
+    print(f"Ingested {total} chunk(s) from {len(paths)} file(s) [{file_list}] into '{index_name}'.")
 
 
 if __name__ == "__main__":

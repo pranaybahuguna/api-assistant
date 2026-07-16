@@ -469,6 +469,7 @@ settings object duplicating these across `.env` and Python.
 | `OCR_MODEL` | `internal-llm` | Vision model for docx image OCR (ingestion) |
 | `CHAT_MODEL` | falls back to `OCR_MODEL` | Chat model for the optional LLM scope tagger (ingestion, when `SCOPE_TAGGER=llm`) |
 | `SCOPE_TAGGER` | `keyword` | Guideline scope tagging: `keyword` (deterministic, free) or `llm` (one `CHAT_MODEL` call per guideline chunk). Ingestion-time only; affects `--index guidelines` |
+| `INGEST_BATCH_SIZE` | `25` | Chunks are tagged, embedded, added, and persisted this many at a time (not all at once) — crash-resilient, bounds in-flight LLM/embedding calls |
 | `EMBEDDING_ENDPOINT_URL` | — | Required — the custom embeddings gateway URL |
 | `EMBEDDING_MODEL` | `text-embedding-3-large` | Model name sent to the embeddings gateway |
 | `EMBEDDING_CERT_PATH` | — | Optional custom CA bundle for the embeddings gateway |
