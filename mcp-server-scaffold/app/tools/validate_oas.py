@@ -226,10 +226,17 @@ def validate_oas(payload: OASInput) -> ValidateOASResult:
                      "get_guideline_section if the user asks about one in depth.")
 
     if guidelines_summary:
-        next_step += (" guidelines_summary is a condensed whole-corpus digest of every design/"
-                      "security rule — cross-check the spec against it too, since the "
-                      "violations/notes above only cover what per-element retrieval surfaced "
-                      "and can miss a rule that's real but scored too far to be included.")
+        next_step += (" MANDATORY FINAL STEP, do not skip it: guidelines_summary is a condensed "
+                      "digest of every design/security rule in the whole corpus, and it deserves "
+                      "the same rigor as the violations/notes above — not a quick glance, not "
+                      "optional context. Go through this OAS spec element by element (every "
+                      "path, operation, parameter, request body, response, schema, and security "
+                      "scheme) and check each one against guidelines_summary. Per-element "
+                      "retrieval above is necessarily incomplete — only the top-K nearest "
+                      "guideline chunks per element are surfaced — so a real rule can be absent "
+                      "from violations/notes even though guidelines_summary covers it. Report "
+                      "anything this surfaces exactly like the findings above, citing the "
+                      "relevant part of guidelines_summary.")
 
     logger.info(
         "validate_oas: api_name=%s oas_len=%d parsed=%s -> is_valid=%s spectral_core=%d "

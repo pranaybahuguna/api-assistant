@@ -61,10 +61,16 @@ def fix_oas(payload: OASInput) -> FixOASResult:
                      "edited spec to confirm the fixes actually resolved the findings. " + _LOOP_BOUND)
 
     if guidelines_summary:
-        next_step += (" guidelines_summary is a condensed whole-corpus digest of every design/"
-                      "security rule — worth a pass against it too, since mechanical_fixes/"
-                      "needs_judgment/guideline_notes only cover what this run's retrieval "
-                      "surfaced and can miss a rule that's real but scored too far to include.")
+        next_step += (" MANDATORY FINAL STEP, do not skip it: guidelines_summary is a condensed "
+                      "digest of every design/security rule in the whole corpus, and it deserves "
+                      "the same rigor as mechanical_fixes/needs_judgment/guideline_notes above — "
+                      "not a quick glance, not optional context. Before you finish editing, go "
+                      "through oas_content element by element (every path, operation, parameter, "
+                      "request body, response, schema, and security scheme) and check each one "
+                      "against guidelines_summary. This run's retrieval is necessarily incomplete "
+                      "— only the top-K nearest guideline chunks per element are surfaced — so a "
+                      "real rule can be absent from the findings above even though "
+                      "guidelines_summary covers it. Apply any fix this surfaces too.")
 
     return FixOASResult(
         mechanical_fixes=mechanical,

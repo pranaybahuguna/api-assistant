@@ -69,10 +69,12 @@ def validate_oas(oas_content: str, format: str = "yaml", api_name: str | None = 
     source_document/source_section — cite these when quoting a guideline.
 
     guidelines_summary (when present) is a condensed digest of every
-    design/security rule in the whole corpus, built once at ingestion —
-    cross-check the spec against it too: violations/notes only cover what
-    per-element retrieval surfaced for THIS spec and can miss a rule that's
-    real but didn't score close enough to be included.
+    design/security rule in the whole corpus, built once at ingestion.
+    Checking the spec against it is MANDATORY, not optional context — give
+    it the same rigor as violations/notes: per-element retrieval only
+    surfaces the top-K nearest guideline chunks per element and can miss a
+    rule that's real but didn't score close enough. The response's
+    next_step spells this out as the required final step.
     """
     logger.info("tools/call validate_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
@@ -98,8 +100,12 @@ def fix_oas(oas_content: str, format: str = "yaml", api_name: str | None = None)
     source_section it came from).
 
     guidelines_summary (when present) is a condensed whole-corpus digest of
-    every design/security rule — worth a pass against it too, since the
-    fixes/notes above only cover what this run's retrieval surfaced.
+    every design/security rule. Checking your edit against it is MANDATORY,
+    not optional context — give it the same rigor as mechanical_fixes/
+    needs_judgment/guideline_notes: this run's retrieval only surfaces the
+    top-K nearest guideline chunks per element and can miss a rule that's
+    real but didn't score close enough. next_step spells this out as the
+    required final step.
     """
     logger.info("tools/call fix_oas: api_name=%s format=%s oas_content=%d chars",
                 api_name, format, len(oas_content))
