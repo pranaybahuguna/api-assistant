@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 _SEVERITY_MAP = {0: "error", 1: "warning", 2: "info", 3: "info"}
 
 # Every custom-ruleset rule mechanically enforces one section of this doc —
-# see resources/api-ruleset.yaml's own module docstring.
+# see the ruleset file itself.
 _GUIDELINES_DOC = "API-Design-Guidelines.docx"
 
 
@@ -39,7 +39,7 @@ class SpectralError(RuntimeError):
 def get_rule_lookup() -> dict[str, dict]:
     """Parse the ruleset file into rule_id -> {description, severity, fix,
     guideline_section}."""
-    path = Path(os.environ.get("SPECTRAL_RULESET_PATH", "./resources/api-ruleset.yaml"))
+    path = Path(os.environ.get("SPECTRAL_RULESET_PATH", "./api-ruleset.yaml"))
     if not path.exists():
         return {}
     ruleset = yaml.safe_load(path.read_text()) or {}
@@ -83,7 +83,12 @@ def enrich(violation: GuidelineViolation) -> GuidelineViolation:
 
 def run_spectral(oas_content: str, fmt: str = "yaml") -> list[GuidelineViolation]:
     spectral_binary = os.environ.get("SPECTRAL_BINARY", "spectral")
-    ruleset_path = os.environ.get("SPECTRAL_RULESET_PATH", "./resources/api-ruleset.yaml")
+    ruleset_path = os.environ.get("SPECTRAL_RULESET_PATH", "./api-ruleset.yaml")
+    if not Path(ruleset_path).exists():
+        raise SpectralError(
+            f"Spectral ruleset not found at '{ruleset_path}' — the ruleset is not "
+            "shipped in this repo; set SPECTRAL_RULESET_PATH to your local copy."
+        )
     suffix = ".yaml" if fmt == "yaml" else ".json"
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as f:
