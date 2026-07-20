@@ -3,31 +3,23 @@ Ingestion: load -> chunk -> embed -> upsert -> (FAISS) save to disk.
 
 --path accepts one or more files AND/OR directories (all matching files
 inside a directory are ingested, non-recursive) — e.g. drop several
-guideline docx files registered in _DEFAULT_PATHS (none ship with this repo)guidelines/ and point --path at that
-folder, or list files individually. All units from every resolved file are
-loaded, chunked, and upserted together in one pass; each unit still carries
-its own originating filename in metadata["source"] (set by the loader), so
+guideline docx files in a local folder and point --path at it, or list
+files individually. All units from every resolved file are loaded,
+chunked, and upserted together in one pass; each unit still carries its
+own originating filename in metadata["source"] (set by the loader), so
 mixing multiple docx files into the same `guidelines` index is safe and
 their chunks stay distinguishable.
 
---path is optional for (source, index) pairs with a known default under
-resources/ (see _DEFAULT_PATHS) — the API Design Guidelines docx, the
-five sample OAS specs registered in _DEFAULT_PATHS (none ship with this repo)apis/, and the API Referential
-sample all must exist locally, so each of the three commands below runs with
-no --path at all. Pass --path explicitly to ingest something else instead.
+--path is REQUIRED: no resource files ship with this repo (the guidelines
+doc, OAS specs, and referential inventory are deployment-time assets you
+supply locally). Register your own defaults in _DEFAULT_PATHS if you want
+to omit --path for common cases.
 
 Usage:
-  python -m app.ingestion.pipeline --source docx        --index guidelines
-  python -m app.ingestion.pipeline --source oas         --index registry
-  python -m app.ingestion.pipeline --source referential --index referential
-  python -m app.ingestion.pipeline --source pdf         --path "./security.pdf" --index guidelines
-
-  # multiple docx files, listed explicitly:
-  python -m app.ingestion.pipeline --source docx --index guidelines \\
-      --path "./API-Design-Guidelines.docx" "./Org-API-Security-Guidelines.docx"
-
-  # or all docx files in a directory:
-  python -m app.ingestion.pipeline --source docx --index guidelines --path ./guidelines/
+  python -m app.ingestion.pipeline --source docx        --path ./API-Design-Guidelines.docx --index guidelines
+  python -m app.ingestion.pipeline --source oas         --path ./apis/ --index registry
+  python -m app.ingestion.pipeline --source referential --path ./api-referential.yaml --index referential
+  python -m app.ingestion.pipeline --source pdf         --path ./security.pdf --index guidelines
 """
 import argparse
 import os
