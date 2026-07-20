@@ -1,28 +1,35 @@
-"""Chat/vision clients for the internal LLM gateway (OpenAI-compatible).
+"""Chat/vision clients for an OpenAI-compatible LLM gateway.
 
-get_ocr_model()  — vision-capable, for docx image OCR at ingestion.
-get_chat_model() — general chat, for the OPTIONAL LLM guideline-scope
-                   tagger at ingestion (SCOPE_TAGGER=llm). Both are
-                   ingestion-time/offline tools; the live request path
-                   (validate_oas etc.) still only ever calls embeddings.
+No connection details ship in this repo — model names, base URL, and API
+key must all be provided via environment variables.
 """
 import os
 from langchain_openai import ChatOpenAI
 
 
+def _require(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(
+            f"{name} is not set — configure your LLM gateway entirely via "
+            "environment variables; this repo ships no defaults."
+        )
+    return value
+
+
 def get_ocr_model() -> ChatOpenAI:
     return ChatOpenAI(
-        model=os.environ.get("OCR_MODEL", "internal-llm"),
-        base_url=os.environ.get("LLM_BASE_URL", "https://llm-gateway.example.com/v1"),
-        api_key=os.environ.get("LLM_API_KEY", "changeme"),
+        model=_require("OCR_MODEL"),
+        base_url=_require("LLM_BASE_URL"),
+        api_key=_require("LLM_API_KEY"),
         temperature=0,
     )
 
 
 def get_chat_model() -> ChatOpenAI:
     return ChatOpenAI(
-        model=os.environ.get("CHAT_MODEL", "internal-llm"),
-        base_url=os.environ.get("LLM_BASE_URL", "https://llm-gateway.example.com/v1"),
-        api_key=os.environ.get("LLM_API_KEY", "changeme"),
+        model=_require("CHAT_MODEL"),
+        base_url=_require("LLM_BASE_URL"),
+        api_key=_require("LLM_API_KEY"),
         temperature=0,
     )
