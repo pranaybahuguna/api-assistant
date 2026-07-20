@@ -6,3 +6,4 @@ venv/
 .ser/
 vector_data/
 .adk/
+.env
