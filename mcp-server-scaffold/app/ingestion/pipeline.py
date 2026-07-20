@@ -3,7 +3,7 @@ Ingestion: load -> chunk -> embed -> upsert -> (FAISS) save to disk.
 
 --path accepts one or more files AND/OR directories (all matching files
 inside a directory are ingested, non-recursive) — e.g. drop several
-guideline docx files under resources/guidelines/ and point --path at that
+guideline docx files registered in _DEFAULT_PATHS (none ship with this repo)guidelines/ and point --path at that
 folder, or list files individually. All units from every resolved file are
 loaded, chunked, and upserted together in one pass; each unit still carries
 its own originating filename in metadata["source"] (set by the loader), so
@@ -12,22 +12,22 @@ their chunks stay distinguishable.
 
 --path is optional for (source, index) pairs with a known default under
 resources/ (see _DEFAULT_PATHS) — the API Design Guidelines docx, the
-five sample OAS specs under resources/apis/, and the API Referential
-sample all ship in the repo, so each of the three commands below runs with
+five sample OAS specs registered in _DEFAULT_PATHS (none ship with this repo)apis/, and the API Referential
+sample all must exist locally, so each of the three commands below runs with
 no --path at all. Pass --path explicitly to ingest something else instead.
 
 Usage:
   python -m app.ingestion.pipeline --source docx        --index guidelines
   python -m app.ingestion.pipeline --source oas         --index registry
   python -m app.ingestion.pipeline --source referential --index referential
-  python -m app.ingestion.pipeline --source pdf         --path "./resources/security.pdf" --index guidelines
+  python -m app.ingestion.pipeline --source pdf         --path "./security.pdf" --index guidelines
 
   # multiple docx files, listed explicitly:
   python -m app.ingestion.pipeline --source docx --index guidelines \\
-      --path "./resources/API-Design-Guidelines.docx" "./resources/Org-API-Security-Guidelines.docx"
+      --path "./API-Design-Guidelines.docx" "./Org-API-Security-Guidelines.docx"
 
   # or all docx files in a directory:
-  python -m app.ingestion.pipeline --source docx --index guidelines --path ./resources/guidelines/
+  python -m app.ingestion.pipeline --source docx --index guidelines --path ./guidelines/
 """
 import argparse
 import os
@@ -53,13 +53,10 @@ _EXTENSIONS = {
     "referential": (".yaml", ".yml", ".json"),
 }
 
-# Known first-party sources checked into resources/ — lets the common case
-# run with no --path at all.
-_DEFAULT_PATHS = {
-    ("docx", "guidelines"): "./resources/API-Design-Guidelines.docx",
-    ("oas", "registry"): "./resources/apis/",
-    ("referential", "referential"): "./resources/api-referential.yaml",
-}
+# No bundled sources ship with this repo — resource files (guidelines doc,
+# OAS specs, referential inventory) are deployment-time assets. Always pass
+# --path, or register your own local defaults here.
+_DEFAULT_PATHS: dict = {}
 
 
 def _resolve_paths(source: str, path_args: list[str] | None, index_name: str) -> list[Path]:
@@ -175,7 +172,7 @@ if __name__ == "__main__":
         "--path", nargs="*", default=None,
         help="One or more files and/or directories (all matching files inside a directory "
              "are ingested, non-recursive). Optional for docx/guidelines, oas/registry, and "
-             "referential/referential — defaults to the matching file under resources/.",
+             "referential/referential — defaults to the matching file registered in _DEFAULT_PATHS (none ship with this repo).",
     )
     ap.add_argument("--index", required=True, choices=list(_INDEXES))
     a = ap.parse_args()
